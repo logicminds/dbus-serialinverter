@@ -3,7 +3,6 @@ import sys
 import os
 import platform
 import dbus
-import traceback
 
 # Victron packages
 sys.path.insert(
@@ -165,8 +164,8 @@ class DbusHelper:
             # Publish all the data from the inverter object to dbus
             self.publish_dbus()
 
-        except:
-            traceback.print_exc()
+        except Exception:
+            logger.exception("Unhandled exception in publish_inverter, quitting")
             loop.quit()
 
     def publish_dbus(self):
