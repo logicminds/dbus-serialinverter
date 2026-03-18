@@ -255,8 +255,9 @@ class Solis(Inverter):
 
             if (power_limit_watts != self.energy_data['overall']['power_limit']):
                 new_power_limit = self.energy_data['overall']['power_limit'] / (self.max_ac_power / 100)
+                new_power_limit = max(0, min(100, round(new_power_limit)))  # clamp to [0, 100]%
                 logger.info("Power limit has changed from %s to %s" % (power_limit, new_power_limit))
-                self.write_registers(3051, int(new_power_limit) * 100)
+                self.write_registers(3051, new_power_limit * 100)
         else:
             error = True
 
