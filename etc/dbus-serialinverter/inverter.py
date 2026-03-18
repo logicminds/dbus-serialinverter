@@ -30,7 +30,7 @@ class Inverter(ABC):
         self.serial_number = None
 
         self.max_ac_power = None
-        self.positon = None # 0=Input1; 1=Output; 2=Input2
+        self.position = None # 0=Input1; 1=Output; 2=Input2
         self.phase = None
         
         self.status = None
