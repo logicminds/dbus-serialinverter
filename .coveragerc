@@ -1,0 +1,8 @@
+[run]
+source = etc/dbus-serialinverter
+omit =
+    etc/dbus-serialinverter/pymodbus/*
+
+[report]
+fail_under = 60
+show_missing = true

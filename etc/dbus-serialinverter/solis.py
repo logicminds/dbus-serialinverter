@@ -38,7 +38,7 @@ class Solis(Inverter):
                 if (self.product_model == 224):
                     return True
                 else:
-                    logger.warn("Unsupported product model: %s" % self.product_model)
+                    logger.warning("Unsupported product model: %s" % self.product_model)
                     return False
             else:
                 return False
@@ -117,7 +117,7 @@ class Solis(Inverter):
                 elif (data_type == 'u32'):
                     data = decoder.decode_32bit_uint()
                 else:
-                    logger.warn("Unsupported data type specified: %s" % data_type)
+                    logger.warning("Unsupported data type specified: %s" % data_type)
                     return False, 0
 
                 logger.debug("Register: %s - Raw data: %s" % (address, data))

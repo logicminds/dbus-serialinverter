@@ -151,7 +151,7 @@ class DbusHelper:
                     self.inverter.online = False
                 # If the inverter is offline for more than 60 polls, quit. VenusOS will restart the driver anyway.
                 if self.error_count >= 60:
-                    logger.warn("Inverter seems to be offline, quitting!")
+                    logger.warning("Inverter seems to be offline, quitting!")
                     loop.quit()
 
         except Exception:
