@@ -134,6 +134,7 @@ def test_unsupported_data_type_returns_false():
 
 def test_connection_failure_returns_false():
     client = mock.MagicMock()
+    client.is_socket_open.return_value = False
     client.connect.return_value = False
     s = _make_solis_with_client(client)
     success, val = s.read_input_registers(3035, 1, "u16", 1, 0)
@@ -155,6 +156,7 @@ def test_register_error_response_returns_false():
 
 def test_write_registers_returns_false_on_connection_failure():
     client = mock.MagicMock()
+    client.is_socket_open.return_value = False
     client.connect.return_value = False
     s = _make_solis_with_client(client)
     result = s.write_registers(3051, 5000)

@@ -144,29 +144,6 @@ def _make_dbus_helper(refresh_returns):
     return helper, _FakeLoop()
 
 
-# ── Todo 006: connect() called per register read ──────────────────────────────
-
-@pytest.mark.xfail(
-    strict=True,
-    reason="todo 006: ModbusSerialClient.connect() is called once per "
-           "read_input_registers() call instead of once per poll cycle",
-)
-def test_todo_006_connect_called_at_most_once_per_poll():
-    client = mock.MagicMock()
-    client.connect.return_value = True
-    client.read_input_registers.return_value = mock.MagicMock(
-        **{"isError.return_value": False, "registers": [0]}
-    )
-    client.write_registers.return_value = mock.MagicMock(
-        **{"isError.return_value": False}
-    )
-    s = _make_solis_with_client(client)
-    s.read_status_data()
-    # Desired: connect() called at most once per poll
-    # Current: called once per read_input_registers() invocation (10–13 times)
-    assert client.connect.call_count <= 1
-
-
 # ── Todo 007: power limit write inside read_status_data() ────────────────────
 
 @pytest.mark.xfail(

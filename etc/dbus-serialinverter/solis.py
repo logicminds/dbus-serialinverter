@@ -90,8 +90,14 @@ class Solis(Inverter):
         result = self.read_status_data()
         return result
 
+    def _ensure_connected(self):
+        """Return True if the Modbus connection is open, connecting once if needed."""
+        if self.client.is_socket_open():
+            return True
+        return self.client.connect()
+
     def read_input_registers(self, address, count, data_type, scale, digits):
-        connection = self.client.connect()
+        connection = self._ensure_connected()
         if (connection):
             res = self.client.read_input_registers(address = address,
                                     count = count,
@@ -129,7 +135,7 @@ class Solis(Inverter):
         return False, 0
 
     def write_registers(self, address, value):
-        connection = self.client.connect()
+        connection = self._ensure_connected()
         if (connection):
             res = self.client.write_registers(address, value, slave = self.slave)
             logger.debug("Write register - address=%s, value=%s, slave=%s" % (address, value, self.slave))
