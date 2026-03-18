@@ -79,6 +79,17 @@ Test files mirror todo numbers:
 | `test_002_power_limit_validation.py` | `MAX_AC_POWER > 0` startup check; power limit clamping |
 | `test_003_poll_lock.py` | Concurrent poll prevention (threading.Lock) |
 | `test_004_bare_except.py` | `except Exception` propagates `KeyboardInterrupt`/`SystemExit` |
+| `test_005_inverter_energy_data_init.py` | `Inverter.__init__` energy_data structure and defaults |
+| `test_006_dbushelper_error_counting.py` | Error counter, online flag, loop-quit threshold (60 failures) |
+| `test_007_dbushelper_update_index.py` | UpdateIndex increment and 255→0 wrap |
+| `test_008_dbushelper_text_formatters.py` | kWh / W / V / A text formatter output strings |
+| `test_009_dummy_get_settings.py` | `Dummy.get_settings()` type-match gate |
+| `test_010_dummy_read_status_data.py` | `Dummy.read_status_data()` field calculations |
+| `test_011_solis_status_mapping.py` | Solis status register → Victron status code mapping |
+| `test_012_solis_read_input_registers.py` | `Solis.read_input_registers()` data types and error paths |
+| `test_013_solis_power_limit_write.py` | Power limit write trigger, value encoding, clamping |
+| `test_014_get_inverter_retry.py` | `get_inverter()` retry loop (3 rounds, sleep, type ordering) |
+| `test_015_regression_stubs.py` | `xfail(strict=True)` stubs for open todos 006–011, 013–014 |
 
 When adding a new inverter or fixing a bug, add a corresponding test in `tests/` and verify it passes before committing.
 
