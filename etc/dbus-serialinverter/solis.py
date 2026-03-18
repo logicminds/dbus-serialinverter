@@ -36,7 +36,7 @@ class Solis(Inverter):
             if (success):
                 logger.debug("Product model: %s" % self.product_model)
                 if (self.product_model == 224):
-                    return self.get_settings()
+                    return True
                 else:
                     logger.warn("Unsupported product model: %s" % self.product_model)
                     return False

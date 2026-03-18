@@ -144,43 +144,6 @@ def _make_dbus_helper(refresh_returns):
     return helper, _FakeLoop()
 
 
-# ── Todo 009: get_settings() called twice at startup ─────────────────────────
-
-@pytest.mark.xfail(
-    strict=True,
-    reason="todo 009: Solis.test_connection() calls get_settings() internally; "
-           "DbusHelper.setup_vedbus() also calls it, doubling all startup Modbus reads",
-)
-def test_todo_009_get_settings_called_once_at_startup():
-    call_count = [0]
-    original_get_settings = Solis.get_settings
-
-    def counting_get_settings(self):
-        call_count[0] += 1
-        return original_get_settings(self)
-
-    client = mock.MagicMock()
-    client.connect.return_value = True
-    client.read_input_registers.return_value = mock.MagicMock(
-        **{"isError.return_value": False, "registers": [224]}  # product model 224
-    )
-
-    s = Solis.__new__(Solis)
-    Inverter.__init__(s, port="/dev/null", baudrate=9600, slave=1)
-    s.type = "Solis"
-    s.client = client
-    s.get_settings = lambda: counting_get_settings(s)
-
-    # Simulate test_connection() path (calls get_settings internally when model==224)
-    # Then a separate setup_vedbus() call would call get_settings() again
-    # We just count the calls from a full startup sequence
-    s.test_connection()    # calls get_settings internally
-    s.get_settings()       # called again by setup_vedbus()
-
-    # Desired: exactly 1 call total
-    assert call_count[0] == 1
-
-
 # ── Todo 010: 3-phase energy_forwarded hardcoded to 0 ────────────────────────
 
 @pytest.mark.xfail(
