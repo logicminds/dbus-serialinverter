@@ -20,14 +20,14 @@ from pymodbus.payload import BinaryPayloadDecoder
 
 class Solis(Inverter):
     INVERTERTYPE = "Solis"
-    
+
     def __init__(self, port, baudrate, slave):
         super(Solis, self).__init__(port, baudrate, slave)
         self.type = self.INVERTERTYPE
 
         self.client = ModbusSerialClient(method = 'rtu', port = port, baudrate = baudrate, stopbits = 1, parity = 'N', bytesize = 8, timeout = 1)
         logger.info("Creating ModbusSerialClient on port %s with baudrate %s" % (port, baudrate))
-        
+
     def test_connection(self):
         try:
             logger.debug("test_connection(): Connected!")
@@ -66,7 +66,7 @@ class Solis(Inverter):
             serialparts = []
             for x in res.registers:
                 serialparts.append((hex(x)[2:])[::-1])
-            
+
             self.serial_number = ''.join(serialparts)
             logger.debug("Serial: %s" % self.serial_number)
         else:
@@ -80,7 +80,7 @@ class Solis(Inverter):
             self.energy_data['overall']['power_limit'] = power_limit_watts
             self.energy_data['overall']['active_power_limit'] = power_limit_watts
             logger.debug("Active power limit: %d W (%d %%)" % (power_limit_watts, power_limit))
-        
+
         return True
 
     def refresh_data(self):
@@ -105,11 +105,11 @@ class Solis(Inverter):
                 if (data_type == 'string'):
                     data = decoder.decode_string(8)
                 elif (data_type == 'float'):
-                    data = decoder.decode_32bit_float()  
+                    data = decoder.decode_32bit_float()
                 elif (data_type == 'u16'):
-                    data = decoder.decode_16bit_uint()  
+                    data = decoder.decode_16bit_uint()
                 elif (data_type == 'u32'):
-                    data = decoder.decode_32bit_uint()      
+                    data = decoder.decode_32bit_uint()
                 else:
                     logger.warn("Unsupported data type specified: %s" % data_type)
                     return False, 0
@@ -169,7 +169,7 @@ class Solis(Inverter):
                 self.energy_data[phase]['ac_current'] = 0.0
                 self.energy_data[phase]['ac_power'] = 0.0
                 self.energy_data[phase]['energy_forwarded'] = 0.0
-            
+
             # AC voltage phase
             success, self.energy_data[self.phase]['ac_voltage'] = self.read_input_registers(3035, 1, "u16", 0.1, 0)
             if (not success):

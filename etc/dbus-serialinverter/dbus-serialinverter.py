@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import platform 
 import sys
 
 from time import sleep
@@ -85,7 +84,7 @@ def main():
             logger.info("No Port needed")
             return "/dev/tty/USB9"
 
-    logger.info("Start dbus-serialinverter");
+    logger.info("Start dbus-serialinverter")
 
     port = get_port()
     inverter: Inverter = get_inverter(port)

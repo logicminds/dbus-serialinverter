@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "etc", "dbus-se
 
 def _load_utils_with_max_power(value_str):
     """Import a fresh utils module with MAX_AC_POWER patched to value_str."""
-    import configparser, importlib, io
+    import configparser
 
     ini = f"""
 [DEFAULT]

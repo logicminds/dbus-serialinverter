@@ -355,7 +355,6 @@ def test_todo_014_dummy_excluded_from_autodetect_on_blank_type():
 
 if __name__ == "__main__":
     # Run without pytest to see which xfail assertions actually fail (as expected)
-    import traceback
     tests = [
         test_todo_006_connect_called_at_most_once_per_poll,
         test_todo_007_read_status_data_does_not_write,
@@ -363,7 +362,7 @@ if __name__ == "__main__":
         test_todo_009_get_settings_called_once_at_startup,
         test_todo_010_3phase_energy_forwarded_is_nonzero,
         test_todo_011_read_status_data_uses_few_transactions,
-        test_todo_013_logger_not_at_debug_level,
+        test_todo_013_logger_level_not_hardcoded_to_debug,
         test_todo_014_dummy_excluded_from_autodetect_on_blank_type,
     ]
     for t in tests:

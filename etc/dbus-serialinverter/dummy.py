@@ -1,18 +1,15 @@
 # -*- coding: utf-8 -*-
-import sys
-import os
 
 from inverter import Inverter
-from utils import logger
 import utils
 
 class Dummy(Inverter):
     INVERTERTYPE = "Dummy"
-    
+
     def __init__(self, port, baudrate, slave):
         super(Dummy, self).__init__(port, baudrate, slave)
         self.type = self.INVERTERTYPE
-        
+
     def test_connection(self):
         return self.get_settings()
 
@@ -27,12 +24,12 @@ class Dummy(Inverter):
             # Hardware version
             self.hardware_version = "1.0.0"
 
-            # Serial number  
+            # Serial number
             self.serial_number = 12345678
 
-	       # Power limit
+            # Power limit
             self.energy_data['overall']['power_limit'] = utils.INVERTER_MAX_AC_POWER
-        
+
             return True
         else:
             return False
@@ -47,7 +44,7 @@ class Dummy(Inverter):
     def read_status_data(self):
         # Energy data
         power = self.energy_data['overall']['power_limit']
-        
+
         self.energy_data["L1"]['ac_voltage'] = 230.0
         self.energy_data["L1"]['ac_current'] = power / 230
         self.energy_data["L1"]['ac_power'] = power
@@ -57,7 +54,7 @@ class Dummy(Inverter):
         self.energy_data["L2"]['ac_current'] = 0.0
         self.energy_data["L2"]['ac_power'] = 0.0
         self.energy_data["L2"]['energy_forwarded'] = 0.0
-            
+
         self.energy_data["L3"]['ac_voltage'] = 0.0
         self.energy_data["L3"]['ac_current'] = 0.0
         self.energy_data["L3"]['ac_power'] = 0.0

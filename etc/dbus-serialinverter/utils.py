@@ -3,7 +3,7 @@ import logging
 
 import configparser
 from pathlib import Path
-from typing import List, Any, Callable
+from typing import List
 
 # Constants
 DRIVER_VERSION = 0.1

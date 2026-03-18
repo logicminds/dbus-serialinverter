@@ -183,7 +183,7 @@ if __name__ == "__main__":
     test_u16_decode_with_scale()
     test_u32_decode()
     test_float_decode()
-    test_string_decode()
+    test_string_decode_raises_type_error()
     test_unsupported_data_type_returns_false()
     test_connection_failure_returns_false()
     test_register_error_response_returns_false()
