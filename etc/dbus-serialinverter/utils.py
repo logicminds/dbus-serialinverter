@@ -20,15 +20,21 @@ path = Path(__file__).parents[0]
 config_file_path = path.joinpath("config.ini").absolute().__str__()
 config.read([config_file_path])
 
-PUBLISH_CONFIG_VALUES = int(config["DEFAULT"]["PUBLISH_CONFIG_VALUES"])
+if not config.has_section('INVERTER'):
+    raise SystemExit("Config file missing or invalid: %s" % config_file_path)
 
-INVERTER_TYPE = config['INVERTER']['TYPE']
-INVERTER_MAX_AC_POWER = float(config['INVERTER']['MAX_AC_POWER'])
-if INVERTER_MAX_AC_POWER <= 0:
-    raise ValueError("INVERTER_MAX_AC_POWER must be greater than 0 (got %s)" % INVERTER_MAX_AC_POWER)
-INVERTER_PHASE = config['INVERTER']['PHASE'] # L1; L2; L3
-INVERTER_POLL_INTERVAL = int(config['INVERTER']['POLL_INTERVAL'])
-INVERTER_POSITION = int(config['INVERTER']['POSITION']) # 0 = AC input 1; 1 = AC output; 2 = AC input 2
+try:
+    PUBLISH_CONFIG_VALUES = int(config["DEFAULT"]["PUBLISH_CONFIG_VALUES"])
+
+    INVERTER_TYPE = config['INVERTER']['TYPE']
+    INVERTER_MAX_AC_POWER = float(config['INVERTER']['MAX_AC_POWER'])
+    if INVERTER_MAX_AC_POWER <= 0:
+        raise SystemExit("INVERTER_MAX_AC_POWER must be greater than 0 (got %s)" % INVERTER_MAX_AC_POWER)
+    INVERTER_PHASE = config['INVERTER']['PHASE'] # L1; L2; L3
+    INVERTER_POLL_INTERVAL = int(config['INVERTER']['POLL_INTERVAL'])
+    INVERTER_POSITION = int(config['INVERTER']['POSITION']) # 0 = AC input 1; 1 = AC output; 2 = AC input 2
+except (KeyError, ValueError) as e:
+    raise SystemExit("Config error: %s. Check %s" % (e, config_file_path))
 
 locals_copy = locals().copy()
 
