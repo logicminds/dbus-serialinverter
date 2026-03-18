@@ -131,8 +131,7 @@ class DbusHelper:
         self._dbusservice.add_path("/Ac/Power", 0, gettextcallback=self.gettextforW)
         self._dbusservice.add_path("/Ac/Energy/Forward", 0, gettextcallback=self.gettextforkWh)
 
-        # FIXME: This is killing zero feed-in regulation
-        self._dbusservice.add_path('/Ac/PowerLimit', self.inverter.energy_data['overall']['power_limit'], gettextcallback=self.gettextforW)
+        self._dbusservice.add_path('/Ac/PowerLimit', self.inverter.energy_data['overall']['power_limit'], gettextcallback=self.gettextforW, writeable=True)
 
         logger.info(f"Publish config values = {utils.PUBLISH_CONFIG_VALUES}")
         if utils.PUBLISH_CONFIG_VALUES == 1:
@@ -150,6 +149,10 @@ class DbusHelper:
                 self.error_count = 0
                 self.inverter.online = True
                 self.inverter.poll_interval = utils.INVERTER_POLL_INTERVAL
+                active = self.inverter.energy_data['overall'].get('active_power_limit')
+                desired = self.inverter.energy_data['overall']['power_limit']
+                if active is not None and active != desired:
+                    self.inverter.apply_power_limit(desired)
             else:
                 self.error_count += 1
                 # If the inverter is offline for more than 10 polls (polled every second for most inverters)

@@ -144,29 +144,6 @@ def _make_dbus_helper(refresh_returns):
     return helper, _FakeLoop()
 
 
-# ── Todo 007: power limit write inside read_status_data() ────────────────────
-
-@pytest.mark.xfail(
-    strict=True,
-    reason="todo 007: write_registers() is called from inside read_status_data() "
-           "when the power limit changes; reads and writes should be separate",
-)
-def test_todo_007_read_status_data_does_not_write():
-    client = mock.MagicMock()
-    client.connect.return_value = True
-    client.read_input_registers.return_value = mock.MagicMock(
-        **{"isError.return_value": False, "registers": [5000]}  # 50% = 400W active
-    )
-    client.write_registers.return_value = mock.MagicMock(
-        **{"isError.return_value": False}
-    )
-    s = _make_solis_with_client(client)
-    s.energy_data["overall"]["power_limit"] = 800.0  # desired = 100% → triggers write
-    s.read_status_data()
-    # Desired: read_status_data() must not call write_registers()
-    assert client.write_registers.call_count == 0
-
-
 # ── Todo 008: publish_dbus() called unconditionally on failure ────────────────
 
 @pytest.mark.xfail(

@@ -149,6 +149,11 @@ class Solis(Inverter):
 
         return False
 
+    def apply_power_limit(self, watts):
+        new_pct = max(0, min(100, round(watts / (self.max_ac_power / 100))))
+        logger.info("Applying power limit: %d W (%d %%)" % (watts, new_pct))
+        return self.write_registers(3051, new_pct * 100)
+
     def read_status_data(self):
         error = False
 
@@ -252,18 +257,12 @@ class Solis(Inverter):
 
         logger.debug("Inverter status: %s" % self.status)
 
-        # Power limit
+        # Power limit (read only — apply_power_limit() handles writes)
         success, power_limit = self.read_input_registers(3049, 1, "u16", 0.01, 0)
         if (success):
             power_limit_watts = float(self.max_ac_power * (int(power_limit) / 100))
             self.energy_data['overall']['active_power_limit'] = power_limit_watts
             logger.debug("Active power limit: %d W (%d %%)" % (power_limit_watts, power_limit))
-
-            if (power_limit_watts != self.energy_data['overall']['power_limit']):
-                new_power_limit = self.energy_data['overall']['power_limit'] / (self.max_ac_power / 100)
-                new_power_limit = max(0, min(100, round(new_power_limit)))  # clamp to [0, 100]%
-                logger.info("Power limit has changed from %s to %s" % (power_limit, new_power_limit))
-                self.write_registers(3051, new_power_limit * 100)
         else:
             error = True
 
