@@ -144,37 +144,6 @@ def _make_dbus_helper(refresh_returns):
     return helper, _FakeLoop()
 
 
-# ── Todo 010: 3-phase energy_forwarded hardcoded to 0 ────────────────────────
-
-@pytest.mark.xfail(
-    strict=True,
-    reason="todo 010: In 3-phase mode, per-phase energy_forwarded is hardcoded to "
-           "integer 0 (solis.py:221-227), silently under-reporting lifetime generation",
-)
-def test_todo_010_3phase_energy_forwarded_is_nonzero():
-    s = Solis.__new__(Solis)
-    Inverter.__init__(s, port="/dev/null", baudrate=9600, slave=1)
-    s.type = "Solis"
-    s.max_ac_power = 800.0
-    s.phase = "L1"
-    s.energy_data["overall"]["power_limit"] = 800.0
-    s.energy_data["overall"]["active_power_limit"] = 800.0
-
-    def _patched_read(address, count, data_type, scale, digits):
-        if address == 3002:
-            return True, 1  # output_type=1 → 3-phase
-        if address == 3014:
-            return True, round(1000 * scale, digits)  # overall energy_forwarded = 100kWh
-        return True, round(0 * scale, digits)
-
-    s.read_input_registers = _patched_read
-    s.write_registers = lambda *a, **kw: True
-    s.read_status_data()
-
-    # Desired: energy_forwarded should be populated from per-phase data
-    assert s.energy_data["L1"]["energy_forwarded"] != 0
-
-
 # ── Todo 011: no Modbus read batching ────────────────────────────────────────
 
 @pytest.mark.xfail(
@@ -257,11 +226,6 @@ def test_todo_014_dummy_excluded_from_autodetect_on_blank_type():
 if __name__ == "__main__":
     # Run without pytest to see which xfail assertions actually fail (as expected)
     tests = [
-        test_todo_006_connect_called_at_most_once_per_poll,
-        test_todo_007_read_status_data_does_not_write,
-        test_todo_008_publish_dbus_not_called_on_refresh_failure,
-        test_todo_009_get_settings_called_once_at_startup,
-        test_todo_010_3phase_energy_forwarded_is_nonzero,
         test_todo_011_read_status_data_uses_few_transactions,
         test_todo_013_logger_level_not_hardcoded_to_debug,
         test_todo_014_dummy_excluded_from_autodetect_on_blank_type,

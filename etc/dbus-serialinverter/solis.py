@@ -228,14 +228,11 @@ class Solis(Inverter):
             if (not success):
                 error = True
 
-            # Energy forwarded L1
-            self.energy_data['L1']['energy_forwarded'] = 0
-
-            # Energy forwarded L2
-            self.energy_data['L2']['energy_forwarded'] = 0
-
-            # Energy forwarded L3
-            self.energy_data['L3']['energy_forwarded'] = 0
+            # Energy forwarded L1/L2/L3: per-phase registers not yet implemented;
+            # publish None so VenusOS knows the value is unavailable, not zero.
+            self.energy_data['L1']['energy_forwarded'] = None
+            self.energy_data['L2']['energy_forwarded'] = None
+            self.energy_data['L3']['energy_forwarded'] = None
 
         # Status
         success, status = self.read_input_registers(3043, 1, "u16", 1, 0)
