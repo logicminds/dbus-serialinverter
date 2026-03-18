@@ -26,6 +26,14 @@ def get_bus():
         else dbus.SystemBus()
     )
 
+# (path_suffix, energy_data_key, format_string) for each per-phase measurement
+_PHASE_PATHS = [
+    ('Voltage',        'ac_voltage',       '%.0FV'),
+    ('Current',        'ac_current',       '%.0FA'),
+    ('Power',          'ac_power',         '%.0FW'),
+    ('Energy/Forward', 'energy_forwarded', '%.2FkWh'),
+]
+
 class DbusHelper:
     def __init__(self, inverter):
         self.inverter = inverter
@@ -62,20 +70,10 @@ class DbusHelper:
         if setting == "instance":
             self.inverter.role, self.instance = self.get_role_instance()
             logger.info("Changed DeviceInstance = %d", self.instance)
-            return
-        logger.info("Changed DeviceInstance = %d", self.instance)
 
-    def gettextforkWh(self, path, value):
-        return ("%.2FkWh" % (float(value)))
-
-    def gettextforW(self, path, value):
-        return ("%.0FW" % (float(value)))
-
-    def gettextforV(self, path, value):
-        return ("%.0FV" % (float(value)))
-
-    def gettextforA(self, path, value):
-        return ("%.0FA" % (float(value)))
+    def _fmt(self, fmt):
+        """Return a D-Bus gettextcallback that formats a numeric value with `fmt`."""
+        return lambda path, value: fmt % float(value)
 
     def setup_vedbus(self):
         # Set up dbus service and device instance
@@ -112,26 +110,17 @@ class DbusHelper:
         self._dbusservice.add_path('/StatusCode', 0) # 0=Startup 0; 1=Startup 1; 2=Startup 2; 3=Startup 3; 4=Startup 4; 5=Startup 5; 6=Startup 6; 7=Running; 8=Standby; 9=Boot loading; 10=Error
         self._dbusservice.add_path('/UpdateIndex', 0)
 
-        # Create dynamic inverter info
-        self._dbusservice.add_path("/Ac/L1/Voltage", 0, gettextcallback=self.gettextforV)
-        self._dbusservice.add_path("/Ac/L1/Current", 0, gettextcallback=self.gettextforA)
-        self._dbusservice.add_path("/Ac/L1/Power", 0, gettextcallback=self.gettextforW)
-        self._dbusservice.add_path("/Ac/L1/Energy/Forward", 0, gettextcallback=self.gettextforkWh)
+        # Create dynamic per-phase inverter info
+        for phase in ['L1', 'L2', 'L3']:
+            for suffix, _, fmt in _PHASE_PATHS:
+                self._dbusservice.add_path(
+                    f"/Ac/{phase}/{suffix}", 0, gettextcallback=self._fmt(fmt)
+                )
 
-        self._dbusservice.add_path("/Ac/L2/Voltage", 0, gettextcallback=self.gettextforV)
-        self._dbusservice.add_path("/Ac/L2/Current", 0, gettextcallback=self.gettextforA)
-        self._dbusservice.add_path("/Ac/L2/Power", 0, gettextcallback=self.gettextforW)
-        self._dbusservice.add_path("/Ac/L2/Energy/Forward", 0, gettextcallback=self.gettextforkWh)
+        self._dbusservice.add_path("/Ac/Power", 0, gettextcallback=self._fmt("%.0FW"))
+        self._dbusservice.add_path("/Ac/Energy/Forward", 0, gettextcallback=self._fmt("%.2FkWh"))
 
-        self._dbusservice.add_path("/Ac/L3/Voltage", 0, gettextcallback=self.gettextforV)
-        self._dbusservice.add_path("/Ac/L3/Current", 0, gettextcallback=self.gettextforA)
-        self._dbusservice.add_path("/Ac/L3/Power", 0, gettextcallback=self.gettextforW)
-        self._dbusservice.add_path("/Ac/L3/Energy/Forward", 0, gettextcallback=self.gettextforkWh)
-
-        self._dbusservice.add_path("/Ac/Power", 0, gettextcallback=self.gettextforW)
-        self._dbusservice.add_path("/Ac/Energy/Forward", 0, gettextcallback=self.gettextforkWh)
-
-        self._dbusservice.add_path('/Ac/PowerLimit', self.inverter.energy_data['overall']['power_limit'], gettextcallback=self.gettextforW, writeable=True)
+        self._dbusservice.add_path('/Ac/PowerLimit', self.inverter.energy_data['overall']['power_limit'], gettextcallback=self._fmt("%.0FW"), writeable=True)
 
         logger.info(f"Publish config values = {utils.PUBLISH_CONFIG_VALUES}")
         if utils.PUBLISH_CONFIG_VALUES == 1:
@@ -172,20 +161,9 @@ class DbusHelper:
     def publish_dbus(self):
         self._dbusservice['/StatusCode'] = self.inverter.status
 
-        self._dbusservice['/Ac/L1/Voltage'] = self.inverter.energy_data['L1']['ac_voltage']
-        self._dbusservice['/Ac/L1/Current'] = self.inverter.energy_data['L1']['ac_current']
-        self._dbusservice['/Ac/L1/Power'] = self.inverter.energy_data['L1']['ac_power']
-        self._dbusservice['/Ac/L1/Energy/Forward'] = self.inverter.energy_data['L1']['energy_forwarded']
-
-        self._dbusservice['/Ac/L2/Voltage'] = self.inverter.energy_data['L2']['ac_voltage']
-        self._dbusservice['/Ac/L2/Current'] = self.inverter.energy_data['L2']['ac_current']
-        self._dbusservice['/Ac/L2/Power'] = self.inverter.energy_data['L2']['ac_power']
-        self._dbusservice['/Ac/L2/Energy/Forward'] = self.inverter.energy_data['L2']['energy_forwarded']
-
-        self._dbusservice['/Ac/L3/Voltage'] = self.inverter.energy_data['L3']['ac_voltage']
-        self._dbusservice['/Ac/L3/Current'] = self.inverter.energy_data['L3']['ac_current']
-        self._dbusservice['/Ac/L3/Power'] = self.inverter.energy_data['L3']['ac_power']
-        self._dbusservice['/Ac/L3/Energy/Forward'] = self.inverter.energy_data['L3']['energy_forwarded']
+        for phase in ['L1', 'L2', 'L3']:
+            for suffix, field, _ in _PHASE_PATHS:
+                self._dbusservice[f"/Ac/{phase}/{suffix}"] = self.inverter.energy_data[phase][field]
 
         self._dbusservice['/Ac/Power'] = self.inverter.energy_data['overall']['ac_power']
         self._dbusservice['/Ac/Energy/Forward'] = self.inverter.energy_data['overall']['energy_forwarded']

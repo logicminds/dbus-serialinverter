@@ -3,7 +3,6 @@ import logging
 
 import configparser
 from pathlib import Path
-from typing import List
 
 # Constants
 DRIVER_VERSION = 0.1
@@ -36,16 +35,10 @@ try:
 except (KeyError, ValueError) as e:
     raise SystemExit("Config error: %s. Check %s" % (e, config_file_path))
 
-locals_copy = locals().copy()
+# Snapshot of all uppercase config constants for publishing to D-Bus /Info/Config/
+_CONFIG_VARS = {k: v for k, v in globals().items() if k.isupper()}
 
 def publish_config_variables(dbusservice):
-    for variable, value in locals_copy.items():
-        if variable.startswith("__"):
-            continue
-        if (
-            isinstance(value, float)
-            or isinstance(value, int)
-            or isinstance(value, str)
-            or isinstance(value, List)
-        ):
+    for variable, value in _CONFIG_VARS.items():
+        if isinstance(value, (float, int, str, list)):
             dbusservice.add_path(f"/Info/Config/{variable}", value)
