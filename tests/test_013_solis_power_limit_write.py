@@ -49,9 +49,35 @@ from solis import Solis
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+def _make_ok_client(active_limit_percent=100):
+    """
+    Build a mock client for read_status_data() tests.
+    Register 3049 returns active_limit_percent * 100 (the raw register value).
+    All other batches return zeros.
+    """
+    # raw register 3049 = percent * 100 (e.g. 50% → 5000)
+    reg_3049 = int(active_limit_percent * 100)
+
+    def _effect(address=0, count=1, slave=1):
+        res = mock.MagicMock()
+        res.isError.return_value = False
+        if address == 3049:
+            res.registers = [reg_3049] + [0] * (count - 1)
+        else:
+            res.registers = [0] * max(count, 1)
+        return res
+
+    client = mock.MagicMock()
+    client.is_socket_open.return_value = True
+    client.connect.return_value = True
+    client.read_input_registers.side_effect = _effect
+    client.write_registers.return_value = mock.MagicMock(**{"isError.return_value": False})
+    return client
+
+
 def _make_solis(active_limit_percent, desired_limit_watts=None, max_ac_power=800.0):
     """
-    active_limit_percent: what register 3049 reports (e.g. 50 → 50% → 400W active)
+    active_limit_percent: what register 3049 reports (e.g. 50 → 50%)
     desired_limit_watts: what energy_data['overall']['power_limit'] is set to
                          (defaults to same as active, so no write should fire)
     """
@@ -66,17 +92,7 @@ def _make_solis(active_limit_percent, desired_limit_watts=None, max_ac_power=800
     s.phase = "L1"
     s.energy_data["overall"]["power_limit"] = desired_limit_watts
     s.energy_data["overall"]["active_power_limit"] = active_limit_watts
-
-    def _patched_read(address, count, data_type, scale, digits):
-        if address == 3049:
-            # Register 3049 stores percent*100 (e.g. 5000 for 50%).
-            # read_input_registers applies scale=0.01, returning the percent (50.0).
-            # read_status_data then does: power_limit_watts = max_ac * (int(percent)/100).
-            # We return the percent directly so the caller's arithmetic works correctly.
-            return True, float(active_limit_percent)
-        return True, round(0 * scale, digits)
-
-    s.read_input_registers = _patched_read
+    s.client = _make_ok_client(active_limit_percent)
     return s
 
 

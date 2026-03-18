@@ -144,29 +144,6 @@ def _make_dbus_helper(refresh_returns):
     return helper, _FakeLoop()
 
 
-# ── Todo 011: no Modbus read batching ────────────────────────────────────────
-
-@pytest.mark.xfail(
-    strict=True,
-    reason="todo 011: read_status_data() makes 10-13 separate Modbus round-trips "
-           "where contiguous registers could be batched into 3-4 requests",
-)
-def test_todo_011_read_status_data_uses_few_transactions():
-    client = mock.MagicMock()
-    client.connect.return_value = True
-    client.read_input_registers.return_value = mock.MagicMock(
-        **{"isError.return_value": False, "registers": [0]}
-    )
-    client.write_registers.return_value = mock.MagicMock(
-        **{"isError.return_value": False}
-    )
-    s = _make_solis_with_client(client)
-    s.read_status_data()
-    # Desired: ≤ 5 Modbus transactions per single-phase poll
-    # Current: 10-13 (one per register group)
-    assert client.read_input_registers.call_count <= 5
-
-
 # ── Todo 013: logger level hardcoded to DEBUG ─────────────────────────────────
 
 @pytest.mark.xfail(
@@ -226,7 +203,6 @@ def test_todo_014_dummy_excluded_from_autodetect_on_blank_type():
 if __name__ == "__main__":
     # Run without pytest to see which xfail assertions actually fail (as expected)
     tests = [
-        test_todo_011_read_status_data_uses_few_transactions,
         test_todo_013_logger_level_not_hardcoded_to_debug,
         test_todo_014_dummy_excluded_from_autodetect_on_blank_type,
     ]

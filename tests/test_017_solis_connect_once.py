@@ -60,11 +60,12 @@ def _make_solis_with_client(client):
 
 
 def _make_ok_client(socket_open=True):
+    # Return 6 zeros for any batch read — enough for the largest batch (3033-3038, 6 regs)
     client = mock.MagicMock()
     client.is_socket_open.return_value = socket_open
     client.connect.return_value = True
     client.read_input_registers.return_value = mock.MagicMock(
-        **{"isError.return_value": False, "registers": [0]}
+        **{"isError.return_value": False, "registers": [0, 0, 0, 0, 0, 0]}
     )
     client.write_registers.return_value = mock.MagicMock(
         **{"isError.return_value": False}

@@ -9,7 +9,6 @@ for mod in ["dbus", "gi", "gi.repository", "gi.repository.GLib",
             "pymodbus", "pymodbus.client", "pymodbus.constants", "pymodbus.payload"]:
     sys.modules.setdefault(mod, types.ModuleType(mod))
 
-# Minimal pymodbus stubs (idempotent — conftest may already have set these)
 _payload = sys.modules["pymodbus.payload"]
 if not hasattr(_payload, "BinaryPayloadDecoder"):
     class _FakeDecoder:
@@ -48,39 +47,51 @@ from inverter import Inverter
 from solis import Solis
 
 
-# ── Helper: solis instance with read_input_registers patched at method level ──
+# ── Helper: solis instance with a batch-aware mock client ────────────────────
 
-def _make_solis(register_map=None, success_default=True, value_default=0):
+def _make_client(address_regs=None, fail_addresses=None):
     """
-    Build a Solis instance whose read_input_registers is monkey-patched.
+    Build a mock ModbusSerialClient whose read_input_registers() returns per-address data.
 
-    register_map: {address: (success, raw_value)} — overrides for specific registers.
-    All other addresses return (success_default, value_default).
-    write_registers always succeeds.
+    address_regs: dict of {start_address: [list_of_raw_u16_values]}
+    fail_addresses: set of start addresses that return isError()=True
+    All other addresses return 6 zeros (enough for any batch).
     """
+    address_regs = address_regs or {}
+    fail_addresses = fail_addresses or set()
+
+    def _effect(address=0, count=1, slave=1):
+        res = mock.MagicMock()
+        if address in fail_addresses:
+            res.isError.return_value = True
+            res.registers = []
+            return res
+        raw = list(address_regs.get(address, []))
+        # Pad to at least `count` elements
+        while len(raw) < count:
+            raw.append(0)
+        res.isError.return_value = False
+        res.registers = raw
+        return res
+
+    client = mock.MagicMock()
+    client.is_socket_open.return_value = True
+    client.connect.return_value = True
+    client.read_input_registers.side_effect = _effect
+    client.write_registers.return_value = mock.MagicMock(**{"isError.return_value": False})
+    return client
+
+
+def _make_solis(address_regs=None, fail_addresses=None):
+    client = _make_client(address_regs, fail_addresses)
     s = Solis.__new__(Solis)
     Inverter.__init__(s, port="/dev/null", baudrate=9600, slave=1)
     s.type = "Solis"
     s.max_ac_power = 800.0
     s.phase = "L1"
-    # Set power_limit so the write-path comparison (power_limit_watts != power_limit)
-    # doesn't divide None by a float.  0.0 matches what register 3049 returns when
-    # value_default=0, so no spurious write is triggered.
     s.energy_data["overall"]["power_limit"] = 0.0
-    register_map = register_map or {}
-
-    def _patched_read(address, count, data_type, scale, digits):
-        if address in register_map:
-            ok, raw = register_map[address]
-            if not ok:
-                return False, 0
-            return True, round(raw * scale, digits)
-        if not success_default:
-            return False, 0
-        return True, round(value_default * scale, digits)
-
-    s.read_input_registers = _patched_read
-    s.write_registers = lambda *a, **kw: True
+    s.energy_data["overall"]["active_power_limit"] = 0.0
+    s.client = client
     return s
 
 
@@ -89,45 +100,45 @@ def _make_solis(register_map=None, success_default=True, value_default=0):
 # 0→0 (Waiting), 1→1 (OpenRun), 2→2 (SoftRun), 3→7 (Generating), else→10 (Fault)
 
 def test_status_0_maps_to_0():
-    s = _make_solis(register_map={3043: (True, 0)})
+    s = _make_solis(address_regs={3043: [0]})
     s.read_status_data()
     assert s.status == 0
 
 
 def test_status_1_maps_to_1():
-    s = _make_solis(register_map={3043: (True, 1)})
+    s = _make_solis(address_regs={3043: [1]})
     s.read_status_data()
     assert s.status == 1
 
 
 def test_status_2_maps_to_2():
-    s = _make_solis(register_map={3043: (True, 2)})
+    s = _make_solis(address_regs={3043: [2]})
     s.read_status_data()
     assert s.status == 2
 
 
 def test_status_3_maps_to_7():
-    s = _make_solis(register_map={3043: (True, 3)})
+    s = _make_solis(address_regs={3043: [3]})
     s.read_status_data()
     assert s.status == 7
 
 
 def test_status_4_maps_to_10_fault():
     """Values outside 0-3 should map to Victron status 10 (Fault)."""
-    s = _make_solis(register_map={3043: (True, 4)})
+    s = _make_solis(address_regs={3043: [4]})
     s.read_status_data()
     assert s.status == 10
 
 
 def test_status_255_maps_to_10_fault():
-    s = _make_solis(register_map={3043: (True, 255)})
+    s = _make_solis(address_regs={3043: [255]})
     s.read_status_data()
     assert s.status == 10
 
 
 def test_status_read_failure_sets_standby():
     """When register 3043 read fails, status must be set to 8 (Standby/Off)."""
-    s = _make_solis(register_map={3043: (False, 0)})
+    s = _make_solis(fail_addresses={3043})
     s.read_status_data()
     assert s.status == 8
 
@@ -140,9 +151,9 @@ def test_returns_true_when_all_reads_succeed():
     assert result is True
 
 
-def test_returns_false_when_any_read_fails():
-    # Fail the overall AC power read
-    s = _make_solis(register_map={3004: (False, 0)})
+def test_returns_false_when_batch_read_fails():
+    # Fail the first batch (output_type + ac_power at 3002)
+    s = _make_solis(fail_addresses={3002})
     result = s.read_status_data()
     assert result is False
 
@@ -156,5 +167,5 @@ if __name__ == "__main__":
     test_status_255_maps_to_10_fault()
     test_status_read_failure_sets_standby()
     test_returns_true_when_all_reads_succeed()
-    test_returns_false_when_any_read_fails()
+    test_returns_false_when_batch_read_fails()
     print("All 011 tests passed.")

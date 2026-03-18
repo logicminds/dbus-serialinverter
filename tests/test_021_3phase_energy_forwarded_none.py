@@ -47,32 +47,53 @@ from inverter import Inverter
 from solis import Solis
 
 
-def _make_3phase_solis():
-    """Solis in 3-phase mode: read_input_registers returns output_type=1."""
+def _make_client(output_type=0, overall_energy_raw=0):
+    """
+    output_type: 0=single-phase, 1=3-phase (returned as first reg of batch 3002)
+    overall_energy_raw: raw register value for 3014 (energy_forwarded * 10)
+    """
+    def _effect(address=0, count=1, slave=1):
+        res = mock.MagicMock()
+        res.isError.return_value = False
+        if address == 3002:
+            # Batch 1: [output_type, unused, ac_power_hi, ac_power_lo]
+            res.registers = [output_type, 0, 0, 0]
+        elif address == 3014:
+            res.registers = [overall_energy_raw] + [0] * (count - 1)
+        elif address == 3033:
+            # 3-phase V+A batch (6 regs)
+            res.registers = [0] * max(count, 6)
+        elif address == 3035:
+            # single-phase V+A batch (4 regs)
+            res.registers = [0] * max(count, 4)
+        else:
+            res.registers = [0] * max(count, 1)
+        return res
+
+    client = mock.MagicMock()
+    client.is_socket_open.return_value = True
+    client.connect.return_value = True
+    client.read_input_registers.side_effect = _effect
+    client.write_registers.return_value = mock.MagicMock(**{"isError.return_value": False})
+    return client
+
+
+def _make_solis(output_type=0, overall_energy_raw=0):
     s = Solis.__new__(Solis)
     Inverter.__init__(s, port="/dev/null", baudrate=9600, slave=1)
     s.type = "Solis"
     s.max_ac_power = 800.0
     s.phase = "L1"
-    s.energy_data["overall"]["power_limit"] = 800.0
-    s.energy_data["overall"]["active_power_limit"] = 800.0
-
-    def _patched_read(address, count, data_type, scale, digits):
-        if address == 3002:
-            return True, 1   # output_type=1 → 3-phase
-        if address == 3014:
-            return True, round(100.0 * scale, digits)  # overall energy_forwarded
-        return True, round(0 * scale, digits)
-
-    s.read_input_registers = _patched_read
-    s.write_registers = lambda *a, **kw: True
+    s.energy_data["overall"]["power_limit"] = 0.0
+    s.energy_data["overall"]["active_power_limit"] = 0.0
+    s.client = _make_client(output_type, overall_energy_raw)
     return s
 
 
 # ── 3-phase energy_forwarded is None (not 0 or any integer) ──────────────────
 
 def test_3phase_l1_energy_forwarded_is_none():
-    s = _make_3phase_solis()
+    s = _make_solis(output_type=1)
     s.read_status_data()
     assert s.energy_data["L1"]["energy_forwarded"] is None, (
         "L1 energy_forwarded must be None in 3-phase mode (not implemented)"
@@ -80,20 +101,20 @@ def test_3phase_l1_energy_forwarded_is_none():
 
 
 def test_3phase_l2_energy_forwarded_is_none():
-    s = _make_3phase_solis()
+    s = _make_solis(output_type=1)
     s.read_status_data()
     assert s.energy_data["L2"]["energy_forwarded"] is None
 
 
 def test_3phase_l3_energy_forwarded_is_none():
-    s = _make_3phase_solis()
+    s = _make_solis(output_type=1)
     s.read_status_data()
     assert s.energy_data["L3"]["energy_forwarded"] is None
 
 
 def test_3phase_energy_forwarded_not_integer_zero():
     """Specifically guards against the old hardcoded-0 regression."""
-    s = _make_3phase_solis()
+    s = _make_solis(output_type=1)
     s.read_status_data()
     for phase in ["L1", "L2", "L3"]:
         val = s.energy_data[phase]["energy_forwarded"]
@@ -104,25 +125,9 @@ def test_3phase_energy_forwarded_not_integer_zero():
 
 def test_single_phase_energy_forwarded_is_still_populated():
     """Single-phase mode must continue to set energy_forwarded from the overall counter."""
-    s = Solis.__new__(Solis)
-    Inverter.__init__(s, port="/dev/null", baudrate=9600, slave=1)
-    s.type = "Solis"
-    s.max_ac_power = 800.0
-    s.phase = "L1"
-    s.energy_data["overall"]["power_limit"] = 800.0
-    s.energy_data["overall"]["active_power_limit"] = 800.0
-
-    def _patched_read(address, count, data_type, scale, digits):
-        if address == 3002:
-            return True, 0   # single-phase
-        if address == 3014:
-            return True, round(50.0 * scale, digits)  # 5.0 kWh
-        return True, round(0 * scale, digits)
-
-    s.read_input_registers = _patched_read
-    s.write_registers = lambda *a, **kw: True
+    # overall_energy_raw = 500 → 500 * 0.1 = 50.0 kWh
+    s = _make_solis(output_type=0, overall_energy_raw=500)
     s.read_status_data()
-
     assert s.energy_data["L1"]["energy_forwarded"] is not None
     assert s.energy_data["L1"]["energy_forwarded"] != 0
 
