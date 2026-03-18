@@ -3,7 +3,6 @@ import sys
 import os
 import platform
 import dbus
-import traceback
 
 # Victron packages
 sys.path.insert(
@@ -16,7 +15,6 @@ sys.path.insert(
 
 from vedbus import VeDbusService
 from settingsdevice import SettingsDevice
-import inverter
 
 from utils import logger
 import utils
@@ -124,7 +122,7 @@ class DbusHelper:
         self._dbusservice.add_path("/Ac/L2/Current", 0, gettextcallback=self.gettextforA)
         self._dbusservice.add_path("/Ac/L2/Power", 0, gettextcallback=self.gettextforW)
         self._dbusservice.add_path("/Ac/L2/Energy/Forward", 0, gettextcallback=self.gettextforkWh)
-        
+
         self._dbusservice.add_path("/Ac/L3/Voltage", 0, gettextcallback=self.gettextforV)
         self._dbusservice.add_path("/Ac/L3/Current", 0, gettextcallback=self.gettextforA)
         self._dbusservice.add_path("/Ac/L3/Power", 0, gettextcallback=self.gettextforW)
@@ -132,7 +130,7 @@ class DbusHelper:
 
         self._dbusservice.add_path("/Ac/Power", 0, gettextcallback=self.gettextforW)
         self._dbusservice.add_path("/Ac/Energy/Forward", 0, gettextcallback=self.gettextforkWh)
-        
+
         # FIXME: This is killing zero feed-in regulation
         self._dbusservice.add_path('/Ac/PowerLimit', self.inverter.energy_data['overall']['power_limit'], gettextcallback=self.gettextforW)
 
@@ -165,8 +163,8 @@ class DbusHelper:
             # Publish all the data from the inverter object to dbus
             self.publish_dbus()
 
-        except:
-            traceback.print_exc()
+        except Exception:
+            logger.exception("Unhandled exception in publish_inverter, quitting")
             loop.quit()
 
     def publish_dbus(self):
@@ -176,12 +174,12 @@ class DbusHelper:
         self._dbusservice['/Ac/L1/Current'] = self.inverter.energy_data['L1']['ac_current']
         self._dbusservice['/Ac/L1/Power'] = self.inverter.energy_data['L1']['ac_power']
         self._dbusservice['/Ac/L1/Energy/Forward'] = self.inverter.energy_data['L1']['energy_forwarded']
-        
+
         self._dbusservice['/Ac/L2/Voltage'] = self.inverter.energy_data['L2']['ac_voltage']
         self._dbusservice['/Ac/L2/Current'] = self.inverter.energy_data['L2']['ac_current']
         self._dbusservice['/Ac/L2/Power'] = self.inverter.energy_data['L2']['ac_power']
         self._dbusservice['/Ac/L2/Energy/Forward'] = self.inverter.energy_data['L2']['energy_forwarded']
-        
+
         self._dbusservice['/Ac/L3/Voltage'] = self.inverter.energy_data['L3']['ac_voltage']
         self._dbusservice['/Ac/L3/Current'] = self.inverter.energy_data['L3']['ac_current']
         self._dbusservice['/Ac/L3/Power'] = self.inverter.energy_data['L3']['ac_power']

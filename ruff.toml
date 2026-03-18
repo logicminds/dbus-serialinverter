@@ -1,0 +1,15 @@
+# ruff configuration for dbus-serialinverter
+# https://docs.astral.sh/ruff/
+
+line-length = 120
+target-version = "py38"
+
+[lint]
+select = ["E", "F", "W"]
+
+[lint.per-file-ignores]
+# Test files must manipulate sys.modules before importing driver code,
+# so imports after sys.path/sys.modules setup are intentional.
+"tests/*.py" = ["E402"]
+# Driver source has pre-existing long comment strings (status code tables).
+"etc/dbus-serialinverter/*.py" = ["E501"]

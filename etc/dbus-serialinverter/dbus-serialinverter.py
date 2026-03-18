@@ -1,10 +1,9 @@
 #!/usr/bin/env python
-import platform 
 import sys
 
 from time import sleep
 from typing import Union
-from threading import Thread
+from threading import Thread, Lock
 
 from dbus.mainloop.glib import DBusGMainLoop
 
@@ -33,10 +32,22 @@ expected_inverter_types = [
 ]
 
 def main():
+    _poll_lock = Lock()
+
     def poll_inverter(loop):
-        # Run in separate thread. Pass in the mainloop so the thread can kill us if there is an exception.
-        poller = Thread(target=lambda: helper.publish_inverter(loop))
-        # Thread will die with us if deamon
+        # Skip this tick if the previous poll is still running.
+        if not _poll_lock.acquire(blocking=False):
+            logger.warning("Poll skipped: previous poll still running")
+            return True
+
+        def _run():
+            try:
+                helper.publish_inverter(loop)
+            finally:
+                _poll_lock.release()
+
+        poller = Thread(target=_run)
+        # Thread will die with us if daemon
         poller.daemon = True
         poller.start()
         return True
@@ -73,7 +84,7 @@ def main():
             logger.info("No Port needed")
             return "/dev/tty/USB9"
 
-    logger.info("Start dbus-serialinverter");
+    logger.info("Start dbus-serialinverter")
 
     port = get_port()
     inverter: Inverter = get_inverter(port)

@@ -1,12 +1,6 @@
 # -*- coding: utf-8 -*-
-from typing import Union, Tuple, List
 
 from utils import logger
-import utils
-import logging
-import math
-from datetime import timedelta
-from time import time
 from abc import ABC, abstractmethod
 
 class Inverter(ABC):
@@ -30,14 +24,14 @@ class Inverter(ABC):
         self.serial_number = None
 
         self.max_ac_power = None
-        self.positon = None # 0=Input1; 1=Output; 2=Input2
+        self.position = None # 0=Input1; 1=Output; 2=Input2
         self.phase = None
-        
+
         self.status = None
 
         # Energy data
         self.energy_data = dict()
-        
+
         for phase in ['L1', 'L2', 'L3']:
             self.energy_data[phase] = dict()
             self.energy_data[phase]['ac_voltage'] = None
@@ -48,7 +42,7 @@ class Inverter(ABC):
         self.energy_data["overall"] = dict()
         self.energy_data['overall']['ac_power'] = None
         self.energy_data['overall']['energy_forwarded'] = None
-        
+
         self.energy_data['overall']['power_limit'] = None
         self.energy_data['overall']['active_power_limit'] = None
 
@@ -87,9 +81,9 @@ class Inverter(ABC):
     def log_settings(self) -> None:
         logger.info(f"Inverter {self.type} connected to dbus from {self.port}")
         logger.info("=== Settings ===")
-        logger.info(f"> Serial number: %s" % self.serial_number)
-        logger.info(f"> Hardware version: %s" % self.hardware_version)
-        logger.info(f"> Max. AC power: %s" % self.max_ac_power)
-        logger.info(f"> Phase: %s" % self.phase)
-        logger.info(f"> Position: %s" % self.position)
+        logger.info("> Serial number: %s" % self.serial_number)
+        logger.info("> Hardware version: %s" % self.hardware_version)
+        logger.info("> Max. AC power: %s" % self.max_ac_power)
+        logger.info("> Phase: %s" % self.phase)
+        logger.info("> Position: %s" % self.position)
         return
