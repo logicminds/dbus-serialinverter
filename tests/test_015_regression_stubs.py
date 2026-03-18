@@ -144,28 +144,6 @@ def _make_dbus_helper(refresh_returns):
     return helper, _FakeLoop()
 
 
-# ── Todo 013: logger level hardcoded to DEBUG ─────────────────────────────────
-
-@pytest.mark.xfail(
-    strict=True,
-    reason="todo 013: utils.py hardcodes logger.setLevel(logging.DEBUG), accelerating "
-           "flash wear on GX hardware and leaking hardware details to /var/log/",
-)
-def test_todo_013_logger_level_not_hardcoded_to_debug():
-    """
-    Checks the production utils.py source directly for the hardcoded setLevel(DEBUG) call.
-    This test will XPASS (and therefore fail the run) once the line is removed.
-    """
-    utils_path = os.path.join(
-        os.path.dirname(__file__), "..", "etc", "dbus-serialinverter", "utils.py"
-    )
-    with open(utils_path) as f:
-        source = f.read()
-    # Desired: no unconditional setLevel(logging.DEBUG) in utils.py
-    # Current: line `logger.setLevel(logging.DEBUG)` is present
-    assert "setLevel(logging.DEBUG)" not in source
-
-
 # ── Todo 014: Dummy activates when INVERTER_TYPE is blank ────────────────────
 
 @pytest.mark.xfail(
@@ -203,7 +181,6 @@ def test_todo_014_dummy_excluded_from_autodetect_on_blank_type():
 if __name__ == "__main__":
     # Run without pytest to see which xfail assertions actually fail (as expected)
     tests = [
-        test_todo_013_logger_level_not_hardcoded_to_debug,
         test_todo_014_dummy_excluded_from_autodetect_on_blank_type,
     ]
     for t in tests:

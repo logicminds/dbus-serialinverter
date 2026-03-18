@@ -8,10 +8,9 @@ from pathlib import Path
 DRIVER_VERSION = 0.1
 DRIVER_SUBVERSION = ".1"
 
-# Logging
+# Logging (level configured below once config.ini is parsed)
 logging.basicConfig()
 logger = logging.getLogger("SerialInverter")
-logger.setLevel(logging.DEBUG)
 
 # Config
 config = configparser.ConfigParser()
@@ -24,6 +23,8 @@ if not config.has_section('INVERTER'):
 
 try:
     PUBLISH_CONFIG_VALUES = int(config["DEFAULT"]["PUBLISH_CONFIG_VALUES"])
+    _log_level_name = config.get("DEFAULT", "LOG_LEVEL", fallback="INFO").upper()
+    logger.setLevel(getattr(logging, _log_level_name, logging.INFO))
 
     INVERTER_TYPE = config['INVERTER']['TYPE']
     INVERTER_MAX_AC_POWER = float(config['INVERTER']['MAX_AC_POWER'])
