@@ -1,27 +1,18 @@
 """Test 015: Regression stubs for todos 006–011, 013–014.
 
-Each test documents the CURRENT WRONG BEHAVIOUR with a concrete assertion, then
-marks the test xfail(strict=True).
+All xfail stubs have been resolved — bugs 006–011, 013, 014 are fixed.
 
-xfail(strict=True) means:
-  - While the bug exists → test is recorded as "xfail" (expected failure): OK
-  - Once the bug is fixed → the assertion passes → pytest marks the run FAILED
-
-That loud failure forces a conscious update: move the test to a passing file or
-rewrite the assertion to document the fixed behaviour.
-
-Todos 005 and 012 are excluded:
-  - 005 (config no error handling): requires re-importing utils with a broken
-    config file; deferred until the fix lands.
+Todos 005 and 012 were excluded from the start:
+  - 005 (config no error handling): tested in test_016_config_error_handling.py
   - 012 (code simplification): not a behavioural regression — no assertion captures it.
+
+This file is retained for its shared helpers used by other tests.
 """
 import sys
 import os
 import types
 import logging
 import unittest.mock as mock
-
-import pytest
 
 # ── Stub setup (idempotent alongside conftest.py) ─────────────────────────────
 
@@ -144,51 +135,5 @@ def _make_dbus_helper(refresh_returns):
     return helper, _FakeLoop()
 
 
-# ── Todo 014: Dummy activates when INVERTER_TYPE is blank ────────────────────
-
-@pytest.mark.xfail(
-    strict=True,
-    reason="todo 014: When INVERTER_TYPE='' (blank config), the auto-detect filter "
-           "includes Dummy in expected_inverter_types because the blank-OR-match "
-           "condition is satisfied, causing fake 800W readings if Solis is unreachable",
-)
-def test_todo_014_dummy_excluded_from_autodetect_on_blank_type():
-    """
-    In dbus-serialinverter.py:31-33, expected_inverter_types is built as:
-        [t for t in supported if t["inverter"].__name__ == TYPE or TYPE == ""]
-    When TYPE="" the second condition is True for ALL types, including Dummy.
-    The desired behaviour: Dummy should only be active when TYPE=="Dummy" explicitly.
-    """
-    # We test the filter logic directly (pure Python, no GLib needed)
-    supported_inverter_types = [
-        {"inverter": Dummy, "baudrate": 0, "slave": 0},
-        {"inverter": Solis, "baudrate": 9600, "slave": 1},
-    ]
-    blank_type = ""
-
-    expected = [
-        t for t in supported_inverter_types
-        if t["inverter"].__name__ == blank_type or blank_type == ""
-    ]
-
-    dummy_types = [t for t in expected if t["inverter"] is Dummy]
-
-    # Desired: Dummy must NOT appear in expected_inverter_types when TYPE is blank
-    assert len(dummy_types) == 0, \
-        "Dummy should not be included in auto-detect when INVERTER_TYPE is blank"
-
-
 if __name__ == "__main__":
-    # Run without pytest to see which xfail assertions actually fail (as expected)
-    tests = [
-        test_todo_014_dummy_excluded_from_autodetect_on_blank_type,
-    ]
-    for t in tests:
-        try:
-            t()
-            print(f"UNEXPECTED PASS: {t.__name__} (bug may be fixed!)")
-        except AssertionError:
-            print(f"xfail (expected): {t.__name__}")
-        except Exception as e:
-            print(f"ERROR in {t.__name__}: {e}")
-    print("015 regression stubs complete.")
+    print("015: all stubs resolved — no xfail tests remain.")

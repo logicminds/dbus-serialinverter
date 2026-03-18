@@ -20,16 +20,20 @@ from inverter import Inverter
 from dummy import Dummy
 from solis import Solis
 
-supported_inverter_types = [
-    {"inverter": Dummy, "baudrate": 0, "slave": 0},
+_REAL_INVERTER_TYPES = [
     {"inverter": Solis, "baudrate": 9600, "slave": 1},
 ]
 
-expected_inverter_types = [
-    inverter_type
-    for inverter_type in supported_inverter_types
-    if inverter_type["inverter"].__name__ == utils.INVERTER_TYPE or utils.INVERTER_TYPE == ""
-]
+# Dummy is only included when explicitly configured — never in auto-detect.
+if utils.INVERTER_TYPE == "Dummy":
+    expected_inverter_types = [{"inverter": Dummy, "baudrate": 0, "slave": 0}]
+elif utils.INVERTER_TYPE == "":
+    expected_inverter_types = _REAL_INVERTER_TYPES
+else:
+    expected_inverter_types = [
+        t for t in _REAL_INVERTER_TYPES
+        if t["inverter"].__name__ == utils.INVERTER_TYPE
+    ]
 
 def main():
     _poll_lock = Lock()
