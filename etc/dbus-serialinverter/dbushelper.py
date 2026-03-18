@@ -153,6 +153,8 @@ class DbusHelper:
                 desired = self.inverter.energy_data['overall']['power_limit']
                 if active is not None and active != desired:
                     self.inverter.apply_power_limit(desired)
+                # Publish only when data is fresh and consistent
+                self.publish_dbus()
             else:
                 self.error_count += 1
                 # If the inverter is offline for more than 10 polls (polled every second for most inverters)
@@ -162,9 +164,6 @@ class DbusHelper:
                 if self.error_count >= 60:
                     logger.warn("Inverter seems to be offline, quitting!")
                     loop.quit()
-
-            # Publish all the data from the inverter object to dbus
-            self.publish_dbus()
 
         except Exception:
             logger.exception("Unhandled exception in publish_inverter, quitting")

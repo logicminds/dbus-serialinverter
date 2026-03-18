@@ -144,22 +144,6 @@ def _make_dbus_helper(refresh_returns):
     return helper, _FakeLoop()
 
 
-# ── Todo 008: publish_dbus() called unconditionally on failure ────────────────
-
-@pytest.mark.xfail(
-    strict=True,
-    reason="todo 008: publish_dbus() is called even when refresh_data() returns False, "
-           "publishing a mix of new and stale values",
-)
-def test_todo_008_publish_dbus_not_called_on_refresh_failure():
-    helper, loop = _make_dbus_helper(refresh_returns=False)
-    publish_dbus_calls = []
-    helper.publish_dbus = lambda: publish_dbus_calls.append(1)
-    helper.publish_inverter(loop)
-    # Desired: publish_dbus() not called when refresh failed
-    assert len(publish_dbus_calls) == 0
-
-
 # ── Todo 009: get_settings() called twice at startup ─────────────────────────
 
 @pytest.mark.xfail(
