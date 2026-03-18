@@ -1,4 +1,4 @@
-"""Test 008: DbusHelper text formatter methods return exact expected strings."""
+"""Test 008: DbusHelper._fmt() factory returns correct unit-formatted strings."""
 import sys
 import os
 import types
@@ -38,64 +38,75 @@ _helper = dbushelper.DbusHelper.__new__(dbushelper.DbusHelper)
 # ── kWh formatter ─────────────────────────────────────────────────────────────
 
 def test_kwh_formats_decimal():
-    assert _helper.gettextforkWh(None, 1.5) == "1.50kWh"
+    fmt = _helper._fmt("%.2FkWh")
+    assert fmt(None, 1.5) == "1.50kWh"
 
 
 def test_kwh_formats_zero():
-    assert _helper.gettextforkWh(None, 0.0) == "0.00kWh"
+    fmt = _helper._fmt("%.2FkWh")
+    assert fmt(None, 0.0) == "0.00kWh"
 
 
 def test_kwh_formats_large_value():
-    assert _helper.gettextforkWh(None, 1234.5) == "1234.50kWh"
+    fmt = _helper._fmt("%.2FkWh")
+    assert fmt(None, 1234.5) == "1234.50kWh"
 
 
 # ── W formatter ───────────────────────────────────────────────────────────────
 
 def test_w_formats_integer_result():
-    assert _helper.gettextforW(None, 230.0) == "230W"
+    fmt = _helper._fmt("%.0FW")
+    assert fmt(None, 230.0) == "230W"
 
 
 def test_w_formats_zero():
-    assert _helper.gettextforW(None, 0.0) == "0W"
+    fmt = _helper._fmt("%.0FW")
+    assert fmt(None, 0.0) == "0W"
 
 
 def test_w_rounds_fractional():
     # %.0F rounds to nearest integer
-    assert _helper.gettextforW(None, 230.6) == "231W"
+    fmt = _helper._fmt("%.0FW")
+    assert fmt(None, 230.6) == "231W"
 
 
 # ── V formatter ───────────────────────────────────────────────────────────────
 
 def test_v_formats_voltage():
-    assert _helper.gettextforV(None, 230.0) == "230V"
+    fmt = _helper._fmt("%.0FV")
+    assert fmt(None, 230.0) == "230V"
 
 
 def test_v_formats_zero():
-    assert _helper.gettextforV(None, 0.0) == "0V"
+    fmt = _helper._fmt("%.0FV")
+    assert fmt(None, 0.0) == "0V"
 
 
 # ── A formatter ───────────────────────────────────────────────────────────────
 
 def test_a_formats_current():
     # 800W / 230V ≈ 3.478A → rounds to 3A
-    result = _helper.gettextforA(None, 3.478)
-    assert result == "3A"
+    fmt = _helper._fmt("%.0FA")
+    assert fmt(None, 3.478) == "3A"
 
 
 def test_a_rounds_up():
-    assert _helper.gettextforA(None, 3.6) == "4A"
+    fmt = _helper._fmt("%.0FA")
+    assert fmt(None, 3.6) == "4A"
 
 
 def test_a_formats_zero():
-    assert _helper.gettextforA(None, 0.0) == "0A"
+    fmt = _helper._fmt("%.0FA")
+    assert fmt(None, 0.0) == "0A"
 
 
 # ── None input documents expected TypeError ───────────────────────────────────
 
 def test_kwh_raises_on_none():
-    """Formatters call float(value) — None is not a valid input. Documents this."""
+    """_fmt("%.2FkWh") calls float(value) — None is not valid. Documents this."""
+    fmt = _helper._fmt("%.2FkWh")
     try:
-        _helper.gettextforkWh(None, None)
+        fmt(None, None)
         assert False, "Should raise TypeError when value is None"
     except TypeError:
         pass  # expected — D-Bus paths are initialised to 0, not None

@@ -78,6 +78,13 @@ class Inverter(ABC):
         """
         return False
 
+    def apply_power_limit(self, watts) -> bool:
+        """
+        Write the requested power limit to the inverter hardware.
+        Override in inverters that support active power limiting.
+        """
+        return True
+
     def log_settings(self) -> None:
         logger.info(f"Inverter {self.type} connected to dbus from {self.port}")
         logger.info("=== Settings ===")

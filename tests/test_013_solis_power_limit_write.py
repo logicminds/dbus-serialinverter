@@ -1,4 +1,4 @@
-"""Test 013: Solis power limit write triggers only when the active limit differs."""
+"""Test 013: Solis.apply_power_limit() encoding/clamping; read_status_data() never writes."""
 import sys
 import os
 import types
@@ -49,9 +49,35 @@ from solis import Solis
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+def _make_ok_client(active_limit_percent=100):
+    """
+    Build a mock client for read_status_data() tests.
+    Register 3049 returns active_limit_percent * 100 (the raw register value).
+    All other batches return zeros.
+    """
+    # raw register 3049 = percent * 100 (e.g. 50% → 5000)
+    reg_3049 = int(active_limit_percent * 100)
+
+    def _effect(address=0, count=1, slave=1):
+        res = mock.MagicMock()
+        res.isError.return_value = False
+        if address == 3049:
+            res.registers = [reg_3049] + [0] * (count - 1)
+        else:
+            res.registers = [0] * max(count, 1)
+        return res
+
+    client = mock.MagicMock()
+    client.is_socket_open.return_value = True
+    client.connect.return_value = True
+    client.read_input_registers.side_effect = _effect
+    client.write_registers.return_value = mock.MagicMock(**{"isError.return_value": False})
+    return client
+
+
 def _make_solis(active_limit_percent, desired_limit_watts=None, max_ac_power=800.0):
     """
-    active_limit_percent: what register 3049 reports (e.g. 50 → 50% → 400W active)
+    active_limit_percent: what register 3049 reports (e.g. 50 → 50%)
     desired_limit_watts: what energy_data['overall']['power_limit'] is set to
                          (defaults to same as active, so no write should fire)
     """
@@ -66,90 +92,77 @@ def _make_solis(active_limit_percent, desired_limit_watts=None, max_ac_power=800
     s.phase = "L1"
     s.energy_data["overall"]["power_limit"] = desired_limit_watts
     s.energy_data["overall"]["active_power_limit"] = active_limit_watts
-
-    def _patched_read(address, count, data_type, scale, digits):
-        if address == 3049:
-            # Register 3049 stores percent*100 (e.g. 5000 for 50%).
-            # read_input_registers applies scale=0.01, returning the percent (50.0).
-            # read_status_data then does: power_limit_watts = max_ac * (int(percent)/100).
-            # We return the percent directly so the caller's arithmetic works correctly.
-            return True, float(active_limit_percent)
-        return True, round(0 * scale, digits)
-
-    s.read_input_registers = _patched_read
+    s.client = _make_ok_client(active_limit_percent)
     return s
 
 
-# ── Write triggered when limit changed ────────────────────────────────────────
+# ── read_status_data() must never call write_registers() ─────────────────────
 
-def test_write_triggered_when_power_limit_changes():
-    # Active: 50% (400W), desired: 100% (800W)
+def test_read_status_data_never_writes_when_limit_changes():
+    """Power limit write is no longer in the read path — read_status_data() is read-only."""
     s = _make_solis(active_limit_percent=50, desired_limit_watts=800.0)
     write_mock = mock.MagicMock(return_value=True)
     s.write_registers = write_mock
     s.read_status_data()
-    assert write_mock.call_count == 1, "write_registers must be called when limit changed"
+    assert write_mock.call_count == 0, "read_status_data() must not call write_registers()"
 
 
-def test_write_value_is_correct_percentage_times_100():
-    # Active: 50% (400W), desired: 100% (800W) → write 100*100 = 10000
-    s = _make_solis(active_limit_percent=50, desired_limit_watts=800.0)
-    write_mock = mock.MagicMock(return_value=True)
-    s.write_registers = write_mock
-    s.read_status_data()
-    written_value = write_mock.call_args[0][1]
-    assert written_value == 10000, f"Expected 10000, got {written_value}"
-
-
-def test_write_value_for_half_power():
-    # Active: 100%, desired: 50% (400W) → write 50*100 = 5000
-    s = _make_solis(active_limit_percent=100, desired_limit_watts=400.0)
-    write_mock = mock.MagicMock(return_value=True)
-    s.write_registers = write_mock
-    s.read_status_data()
-    written_value = write_mock.call_args[0][1]
-    assert written_value == 5000, f"Expected 5000, got {written_value}"
-
-
-# ── No write when limit unchanged ─────────────────────────────────────────────
-
-def test_write_not_triggered_when_limit_unchanged():
-    # Active: 100% (800W), desired: 100% (800W) — same
+def test_read_status_data_never_writes_when_limit_unchanged():
     s = _make_solis(active_limit_percent=100, desired_limit_watts=800.0)
     write_mock = mock.MagicMock(return_value=True)
     s.write_registers = write_mock
     s.read_status_data()
-    assert write_mock.call_count == 0, "write_registers must NOT be called when limit unchanged"
+    assert write_mock.call_count == 0
 
 
-# ── Clamping: written value always in [0, 10000] ─────────────────────────────
+# ── apply_power_limit() encoding and clamping ─────────────────────────────────
 
-def test_write_value_clamped_when_desired_exceeds_max():
-    # Desired 9999W >> max_ac_power=800W → clamped to 100% → 10000
-    s = _make_solis(active_limit_percent=50, desired_limit_watts=9999.0)
+def test_apply_power_limit_full_power():
+    # 800W of 800W max → 100% → register value 10000
+    s = _make_solis(active_limit_percent=50)
     write_mock = mock.MagicMock(return_value=True)
     s.write_registers = write_mock
-    s.read_status_data()
+    s.apply_power_limit(800.0)
     written_value = write_mock.call_args[0][1]
-    assert 0 <= written_value <= 10000, f"Written value {written_value} out of [0, 10000]"
+    assert written_value == 10000, f"Expected 10000, got {written_value}"
+
+
+def test_apply_power_limit_half_power():
+    # 400W of 800W max → 50% → register value 5000
+    s = _make_solis(active_limit_percent=100)
+    write_mock = mock.MagicMock(return_value=True)
+    s.write_registers = write_mock
+    s.apply_power_limit(400.0)
+    written_value = write_mock.call_args[0][1]
+    assert written_value == 5000, f"Expected 5000, got {written_value}"
+
+
+def test_apply_power_limit_clamped_when_desired_exceeds_max():
+    # 9999W >> 800W max → clamped to 100% → 10000
+    s = _make_solis(active_limit_percent=50)
+    write_mock = mock.MagicMock(return_value=True)
+    s.write_registers = write_mock
+    s.apply_power_limit(9999.0)
+    written_value = write_mock.call_args[0][1]
+    assert 0 <= written_value <= 10000
     assert written_value == 10000
 
 
-def test_write_value_clamped_when_desired_is_negative():
-    # Desired -500W → clamped to 0% → 0
-    s = _make_solis(active_limit_percent=50, desired_limit_watts=-500.0)
+def test_apply_power_limit_clamped_when_negative():
+    # -500W → clamped to 0% → 0
+    s = _make_solis(active_limit_percent=50)
     write_mock = mock.MagicMock(return_value=True)
     s.write_registers = write_mock
-    s.read_status_data()
+    s.apply_power_limit(-500.0)
     written_value = write_mock.call_args[0][1]
     assert written_value == 0, f"Expected 0, got {written_value}"
 
 
 if __name__ == "__main__":
-    test_write_triggered_when_power_limit_changes()
-    test_write_value_is_correct_percentage_times_100()
-    test_write_value_for_half_power()
-    test_write_not_triggered_when_limit_unchanged()
-    test_write_value_clamped_when_desired_exceeds_max()
-    test_write_value_clamped_when_desired_is_negative()
+    test_read_status_data_never_writes_when_limit_changes()
+    test_read_status_data_never_writes_when_limit_unchanged()
+    test_apply_power_limit_full_power()
+    test_apply_power_limit_half_power()
+    test_apply_power_limit_clamped_when_desired_exceeds_max()
+    test_apply_power_limit_clamped_when_negative()
     print("All 013 tests passed.")
