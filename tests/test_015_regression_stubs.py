@@ -71,7 +71,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "etc", "dbus-se
 
 from inverter import Inverter
 from solis import Solis
-from dummy import Dummy
+
 import dbushelper
 
 

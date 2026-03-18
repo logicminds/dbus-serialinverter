@@ -56,6 +56,20 @@ PHASE=L1             # L1, L2, or L3
 POSITION=1           # 0=AC input 1, 1=AC output, 2=AC input 2
 ```
 
+## Pre-Commit Checklist
+
+**Always run lint and tests before committing.** Both must pass clean.
+
+```bash
+# 1. Lint
+ruff check etc/dbus-serialinverter/*.py tests/
+
+# 2. Tests with coverage (must stay ≥ 60%)
+python -m pytest tests/ -v --tb=short --cov --cov-report=term-missing --cov-fail-under=60
+```
+
+CI enforces the same checks on every push and PR. A commit that breaks lint or drops below 60% coverage will fail the pipeline.
+
 ## Running Tests
 
 Tests live in `tests/` and have no external dependencies beyond the standard library. Each test file stubs out VenusOS/D-Bus packages so they run on any Python 3.6+ machine without hardware.

@@ -3,7 +3,7 @@ import sys
 import os
 import types
 import logging
-import unittest.mock as mock
+
 
 for mod in ["dbus", "gi", "gi.repository", "gi.repository.GLib",
             "pymodbus", "pymodbus.client", "pymodbus.constants", "pymodbus.payload",
