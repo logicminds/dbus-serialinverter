@@ -1,3 +1,4 @@
 *.log
 docs
 todos
+__pycache__
