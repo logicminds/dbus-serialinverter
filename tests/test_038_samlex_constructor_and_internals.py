@@ -84,8 +84,8 @@ def test_constructor_initialises_charge_state():
 
 def test_constructor_creates_modbus_client():
     """Samlex.__init__ must instantiate a ModbusSerialClient and assign to self.client."""
-    import samlex as samlex_mod
-    with mock.patch.object(samlex_mod, "ModbusSerialClient") as mock_msc:
+    import modbus_inverter as modbus_inverter_mod
+    with mock.patch.object(modbus_inverter_mod, "ModbusSerialClient") as mock_msc:
         s = Samlex(port="/dev/ttyUSB0", baudrate=9600, slave=1)
     assert mock_msc.called, "ModbusSerialClient constructor was not called"
     assert s.client is not None
@@ -93,8 +93,8 @@ def test_constructor_creates_modbus_client():
 
 def test_constructor_passes_port_to_modbus():
     """ModbusSerialClient must receive the port= argument from __init__."""
-    import samlex as samlex_mod
-    with mock.patch.object(samlex_mod, "ModbusSerialClient") as mock_msc:
+    import modbus_inverter as modbus_inverter_mod
+    with mock.patch.object(modbus_inverter_mod, "ModbusSerialClient") as mock_msc:
         Samlex(port="/dev/ttyUSB1", baudrate=19200, slave=2)
     _, kwargs = mock_msc.call_args
     assert kwargs.get("port") == "/dev/ttyUSB1"
@@ -102,8 +102,8 @@ def test_constructor_passes_port_to_modbus():
 
 def test_constructor_passes_baudrate_to_modbus():
     """ModbusSerialClient must receive the baudrate= argument from __init__."""
-    import samlex as samlex_mod
-    with mock.patch.object(samlex_mod, "ModbusSerialClient") as mock_msc:
+    import modbus_inverter as modbus_inverter_mod
+    with mock.patch.object(modbus_inverter_mod, "ModbusSerialClient") as mock_msc:
         Samlex(port="/dev/null", baudrate=19200, slave=1)
     _, kwargs = mock_msc.call_args
     assert kwargs.get("baudrate") == 19200
