@@ -66,7 +66,7 @@ class Solis(ModbusInverter):
             power_limit_watts = float(self.max_ac_power * (int(power_limit) / 100))
             self.energy_data['overall']['power_limit'] = power_limit_watts
             self.energy_data['overall']['active_power_limit'] = power_limit_watts
-            logger.debug("Active power limit: %d W (%d %%)", power_limit_watts, power_limit)
+            logger.debug("Active power limit: %d W (%d %%)", int(power_limit_watts), int(power_limit))
 
         return True
 
@@ -138,7 +138,7 @@ class Solis(ModbusInverter):
             logger.error("max_ac_power not set, cannot apply power limit")
             return False
         new_pct = max(0, min(100, round(watts / (self.max_ac_power / 100))))
-        logger.info("Applying power limit: %d W (%d %%)", watts, new_pct)
+        logger.info("Applying power limit: %d W (%d %%)", int(watts), int(new_pct))
         return self.write_registers(3051, new_pct * 100)
 
     def read_status_data(self):
