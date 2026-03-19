@@ -10,6 +10,11 @@ class Inverter(ABC):
     use the individual implementations as type Inverter and work with it.
     """
 
+    # VenusOS D-Bus service type prefix. Override in subclasses that are not PV inverters.
+    # 'com.victronenergy.pvinverter' — grid-tied solar PV inverters (default)
+    # 'com.victronenergy.vebus'      — multi-mode inverter/chargers
+    SERVICE_PREFIX = "com.victronenergy.pvinverter"
+
     def __init__(self, port, baudrate, slave):
         self.port = port
         self.baudrate = baudrate
@@ -45,6 +50,22 @@ class Inverter(ABC):
 
         self.energy_data['overall']['power_limit'] = None
         self.energy_data['overall']['active_power_limit'] = None
+
+        # DC / battery data (vebus inverter/chargers populate these)
+        self.energy_data['dc'] = {
+            'voltage': None,   # V (float)
+            'current': None,   # A (float, positive = charging)
+            'power':   None,   # W (float)
+            'soc':     None,   # % (float, 0-100)
+        }
+
+        # AC input / shore power data (vebus inverter/chargers populate these)
+        self.energy_data['ac_in'] = {
+            'voltage':   None,  # V (float)
+            'current':   None,  # A (float)
+            'power':     None,  # W (float)
+            'connected': None,  # 0 or 1
+        }
 
     @abstractmethod
     def test_connection(self) -> bool:

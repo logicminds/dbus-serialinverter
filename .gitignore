@@ -1,5 +1,6 @@
 *.log
-docs
+docs/brainstorms
+docs/plans
 todos
 __pycache__
 .coverage
