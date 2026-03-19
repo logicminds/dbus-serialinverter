@@ -72,14 +72,18 @@ class Samlex(ModbusInverter):
 
     def _read_group(self, keys):
         """Read a group of registers in one batch. Returns dict key->value or None on failure."""
-        addrs = {key: self._reg(key) for key in keys}
-        min_addr = min(addrs.values())
-        max_addr = max(addrs.values())
-        count = max_addr - min_addr + 1
-        ok, regs = self._read_batch(min_addr, count)
-        if not ok:
+        try:
+            addrs = {key: self._reg(key) for key in keys}
+            min_addr = min(addrs.values())
+            max_addr = max(addrs.values())
+            count = max_addr - min_addr + 1
+            ok, regs = self._read_batch(min_addr, count)
+            if not ok:
+                return None
+            return {key: regs[addr - min_addr] for key, addr in addrs.items()}
+        except (ValueError, IndexError) as exc:
+            logger.error("_read_group failed for keys %s: %s", keys, exc)
             return None
-        return {key: regs[addr - min_addr] for key, addr in addrs.items()}
 
     def _apply_scaled_fields(self, group_result, fields):
         """Apply scaled assignments from a group read result.
@@ -106,8 +110,8 @@ class Samlex(ModbusInverter):
                 return True
             logger.debug("Samlex: identity mismatch or read failed")
             return False
-        except IOError:
-            logger.debug("test_connection(): IOError")
+        except (IOError, ValueError) as exc:
+            logger.debug("test_connection() failed: %s", exc)
             return False
 
     def get_settings(self):

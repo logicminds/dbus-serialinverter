@@ -41,4 +41,7 @@ class ModbusInverter(Inverter):
         if res.isError():
             logger.error("Error reading registers %s-%s", address, address + count - 1)
             return False, []
+        if len(res.registers) < count:
+            logger.error("Truncated response: expected %s registers, got %s (address=%s)", count, len(res.registers), address)
+            return False, []
         return True, res.registers
