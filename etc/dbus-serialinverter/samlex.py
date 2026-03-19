@@ -6,14 +6,6 @@ from inverter import Inverter
 from utils import logger
 import utils
 
-sys.path.insert(
-    1,
-    os.path.join(
-        os.path.dirname(__file__),
-        "/opt/victronenergy/dbus-serialinverter/pymodbus",
-    ),
-)
-
 from pymodbus.client import ModbusSerialClient
 
 # All keys that must be present and numeric in [SAMLEX_REGISTERS] before the

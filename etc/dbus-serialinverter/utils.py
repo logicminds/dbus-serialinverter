@@ -1,8 +1,16 @@
 # -*- coding: utf-8 -*-
 import logging
+import os
+import sys
 
 import configparser
 from pathlib import Path
+
+# VenusOS ships pymodbus 2.5.3 system-wide, but this driver requires the 3.x API
+# (breaking changes in import paths and client interface). We vendor pymodbus 3.1.3
+# alongside the driver and insert it at the front of sys.path so it takes precedence
+# over the system copy regardless of where the driver is run from.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "pymodbus"))
 
 # Constants
 DRIVER_VERSION = 0.1
