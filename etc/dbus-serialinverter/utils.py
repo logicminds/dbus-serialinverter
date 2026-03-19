@@ -22,8 +22,7 @@ logger = logging.getLogger("SerialInverter")
 
 # Config
 config = configparser.ConfigParser()
-path = Path(__file__).parents[0]
-config_file_path = path.joinpath("config.ini").absolute().__str__()
+config_file_path = str(Path(__file__).parent / "config.ini")
 config.read([config_file_path])
 
 if not config.has_section('INVERTER'):
