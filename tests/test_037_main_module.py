@@ -106,20 +106,19 @@ def test_real_inverter_types_have_baudrate():
 def test_main_exits_on_no_inverter(monkeypatch):
     """main() must call sys.exit(1) when get_inverter returns None."""
     mod = _load_module("Dummy")
+    monkeypatch.setattr(mod, "sleep", mock.MagicMock())
 
-    # Patch all inverter test_connection to fail so get_inverter returns None
-    with mock.patch("time.sleep"):
-        # Override expected_inverter_types so all fail
-        fail_class = type("_Fail", (), {
-            "__init__": lambda self, **kw: None,
-            "test_connection": lambda self: False,
-        })
-        mod.expected_inverter_types = [{"inverter": fail_class, "baudrate": 0, "slave": 0}]
-        monkeypatch.setattr(sys, "argv", ["dbus-serialinverter.py", "/dev/null"])
+    # Override expected_inverter_types so all fail
+    fail_class = type("_Fail", (), {
+        "__init__": lambda self, **kw: None,
+        "test_connection": lambda self: False,
+    })
+    mod.expected_inverter_types = [{"inverter": fail_class, "baudrate": 0, "slave": 0}]
+    monkeypatch.setattr(sys, "argv", ["dbus-serialinverter.py", "/dev/null"])
 
-        with pytest.raises(SystemExit) as exc:
-            mod.main()
-        assert exc.value.code == 1
+    with pytest.raises(SystemExit) as exc:
+        mod.main()
+    assert exc.value.code == 1
 
 
 # ── main(): successful startup (setup_vedbus returns True) ────────────────────
@@ -201,21 +200,23 @@ def test_main_exits_when_setup_vedbus_fails(monkeypatch):
 def test_main_get_port_fallback(monkeypatch):
     """get_port() returns '/dev/tty/USB9' when no argument is passed."""
     mod = _load_module("Dummy")
+    monkeypatch.setattr(mod, "sleep", mock.MagicMock())
 
-    # Make get_inverter return None immediately so main() exits via sys.exit(1)
+    # Capture which port is passed to the inverter constructor
+    ports_seen = []
     fail_class = type("_Fail", (), {
-        "__init__": lambda self, **kw: None,
+        "__init__": lambda self, port, **kw: ports_seen.append(port) or None,
         "test_connection": lambda self: False,
     })
     mod.expected_inverter_types = [{"inverter": fail_class, "baudrate": 0, "slave": 0}]
 
-    # No port argument
+    # No port argument — get_port() should fall back to "/dev/tty/USB9"
     monkeypatch.setattr(sys, "argv", ["dbus-serialinverter.py"])
 
-    with mock.patch("time.sleep"), pytest.raises(SystemExit):
+    with pytest.raises(SystemExit):
         mod.main()
 
-    # If we got here without KeyError/TypeError, get_port() executed its fallback branch
+    assert ports_seen[0] == "/dev/tty/USB9"
 
 
 # ── main(): KeyboardInterrupt exits cleanly ───────────────────────────────────
