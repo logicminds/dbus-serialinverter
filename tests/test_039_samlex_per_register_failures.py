@@ -13,7 +13,6 @@ import logging
 import configparser
 import unittest.mock as mock
 
-import pytest
 
 for _mod in ["dbus", "gi", "gi.repository", "gi.repository.GLib",
              "pymodbus", "pymodbus.client", "pymodbus.constants", "pymodbus.payload"]:

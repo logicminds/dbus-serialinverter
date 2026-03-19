@@ -16,7 +16,6 @@ import sys
 import os
 import types
 import importlib.util
-import threading
 import unittest.mock as mock
 
 import pytest
@@ -107,7 +106,6 @@ def test_real_inverter_types_have_baudrate():
 def test_main_exits_on_no_inverter(monkeypatch):
     """main() must call sys.exit(1) when get_inverter returns None."""
     mod = _load_module("Dummy")
-    import utils as _utils
 
     # Patch all inverter test_connection to fail so get_inverter returns None
     with mock.patch("time.sleep"):
