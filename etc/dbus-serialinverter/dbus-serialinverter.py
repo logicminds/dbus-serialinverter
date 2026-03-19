@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import sys
+import re
 
 from time import sleep
 from typing import Union
@@ -82,13 +83,14 @@ def main():
         return None
 
     def get_port() -> str:
-        # Get the port we need to use from the argument
-        if len(sys.argv) > 1:
-            return sys.argv[1]
-        else:
-            # just for MNB-SPI
-            logger.info("No Port needed")
-            return "/dev/tty/USB9"
+        if len(sys.argv) < 2:
+            logger.error("Usage: dbus-serialinverter.py <port>")
+            sys.exit(1)
+        port = sys.argv[1]
+        if not re.match(r"^/dev/(tty[A-Za-z0-9_]+|null)$", port):
+            logger.error("Invalid port path: %s", port)
+            sys.exit(1)
+        return port
 
     logger.info("Start dbus-serialinverter")
 
