@@ -140,6 +140,9 @@ class Solis(Inverter):
         return False
 
     def apply_power_limit(self, watts):
+        if not self.max_ac_power:
+            logger.error("max_ac_power not set, cannot apply power limit")
+            return False
         new_pct = max(0, min(100, round(watts / (self.max_ac_power / 100))))
         logger.info("Applying power limit: %d W (%d %%)" % (watts, new_pct))
         return self.write_registers(3051, new_pct * 100)
