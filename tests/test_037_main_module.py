@@ -154,8 +154,8 @@ def test_main_runs_mainloop_on_success(monkeypatch):
     # Patch DbusHelper in the loaded module's namespace (from dbushelper import DbusHelper
     # creates a local binding — patching the source module does not affect it)
     mod.DbusHelper = mock.MagicMock(return_value=fake_helper)
-    mod.gobject = mock.MagicMock()
-    mod.gobject.MainLoop.return_value = fake_loop
+    mod.GLib = mock.MagicMock()
+    mod.GLib.MainLoop.return_value = fake_loop
     mod.DBusGMainLoop = mock.MagicMock(return_value=None)
 
     mod.main()
@@ -187,7 +187,7 @@ def test_main_exits_when_setup_vedbus_fails(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["dbus-serialinverter.py", "/dev/null"])
 
     mod.DbusHelper = mock.MagicMock(return_value=fake_helper)
-    mod.gobject = mock.MagicMock()
+    mod.GLib = mock.MagicMock()
     mod.DBusGMainLoop = mock.MagicMock(return_value=None)
 
     with pytest.raises(SystemExit) as exc:
@@ -263,8 +263,8 @@ def test_main_keyboard_interrupt_exits_cleanly(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["dbus-serialinverter.py", "/dev/null"])
 
     mod.DbusHelper = mock.MagicMock(return_value=fake_helper)
-    mod.gobject = mock.MagicMock()
-    mod.gobject.MainLoop.return_value = fake_loop
+    mod.GLib = mock.MagicMock()
+    mod.GLib.MainLoop.return_value = fake_loop
     mod.DBusGMainLoop = mock.MagicMock(return_value=None)
 
     # Must not raise
