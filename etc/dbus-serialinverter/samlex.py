@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 
-from inverter import Inverter
+from modbus_inverter import ModbusInverter
 from utils import logger
 import utils
-
-from pymodbus.client import ModbusSerialClient
 
 # All keys that must be present and numeric in [SAMLEX_REGISTERS] before the
 # driver attempts any Modbus communication.  test_connection() validates these.
@@ -32,7 +30,7 @@ REQUIRED_SAMLEX_REGISTERS = (
 )
 
 
-class Samlex(Inverter):
+class Samlex(ModbusInverter):
     INVERTERTYPE = "Samlex"
     SERVICE_PREFIX = "com.victronenergy.vebus"
 
@@ -41,15 +39,6 @@ class Samlex(Inverter):
         self.type = self.INVERTERTYPE
         # Samlex-specific: raw charge state register value (published as /VebusChargeState)
         self.energy_data["dc"]["charge_state"] = None
-        self.client = ModbusSerialClient(
-            method="rtu",
-            port=port,
-            baudrate=baudrate,
-            stopbits=1,
-            parity="N",
-            bytesize=8,
-            timeout=1,
-        )
         logger.info("Creating ModbusSerialClient (Samlex) on port %s with baudrate %s", port, baudrate)
 
     # ── Config validation ─────────────────────────────────────────────────────
@@ -81,24 +70,6 @@ class Samlex(Inverter):
 
     # ── Modbus helpers ────────────────────────────────────────────────────────
 
-    def _ensure_connected(self):
-        """Return True if the Modbus connection is open, connecting once if needed."""
-        if self.client.is_socket_open():
-            return True
-        return self.client.connect()
-
-    def _read_batch(self, address, count):
-        """Read `count` raw u16 registers from `address`. Returns (success, list[int])."""
-        if not self._ensure_connected():
-            logger.error("No connection")
-            return False, []
-        res = self.client.read_input_registers(address=address, count=count, slave=self.slave)
-        logger.debug("Read batch - address=%s, count=%s, slave=%s", address, count, self.slave)
-        if res.isError():
-            logger.error("Error reading registers %s-%s", address, address + count - 1)
-            return False, []
-        return True, res.registers
-
     def _read_group(self, keys):
         """Read a group of registers in one batch. Returns dict key->value or None on failure."""
         addrs = {key: self._reg(key) for key in keys}
@@ -109,6 +80,16 @@ class Samlex(Inverter):
         if not ok:
             return None
         return {key: regs[addr - min_addr] for key, addr in addrs.items()}
+
+    def _apply_scaled_fields(self, group_result, fields):
+        """Apply scaled assignments from a group read result.
+
+        fields: list of (reg_key, scale_key, section, field_name, digits)
+        """
+        for reg_key, scale_key, section, field_name, digits in fields:
+            self.energy_data[section][field_name] = round(
+                group_result[reg_key] * self._scale(scale_key), digits
+            )
 
     # ── Inverter interface ────────────────────────────────────────────────────
 
@@ -158,19 +139,22 @@ class Samlex(Inverter):
         # AC output (batch)
         ac_out = self._read_group(["REG_AC_OUT_VOLTAGE", "REG_AC_OUT_CURRENT", "REG_AC_OUT_POWER"])
         if ac_out:
-            self.energy_data["L1"]["ac_voltage"] = round(ac_out["REG_AC_OUT_VOLTAGE"] * self._scale("SCALE_AC_OUT_VOLTAGE"), 1)
-            self.energy_data["L1"]["ac_current"] = round(ac_out["REG_AC_OUT_CURRENT"] * self._scale("SCALE_AC_OUT_CURRENT"), 2)
-            ac_power = round(ac_out["REG_AC_OUT_POWER"] * self._scale("SCALE_AC_OUT_POWER"), 0)
-            self.energy_data["L1"]["ac_power"] = ac_power
-            self.energy_data["overall"]["ac_power"] = ac_power
+            self._apply_scaled_fields(ac_out, [
+                ("REG_AC_OUT_VOLTAGE", "SCALE_AC_OUT_VOLTAGE", "L1", "ac_voltage", 1),
+                ("REG_AC_OUT_CURRENT", "SCALE_AC_OUT_CURRENT", "L1", "ac_current", 2),
+                ("REG_AC_OUT_POWER",   "SCALE_AC_OUT_POWER",   "L1", "ac_power",   0),
+            ])
+            self.energy_data["overall"]["ac_power"] = self.energy_data["L1"]["ac_power"]
         else:
             error = True
 
         # DC / battery (batch)
         dc = self._read_group(["REG_DC_VOLTAGE", "REG_DC_CURRENT", "REG_SOC"])
         if dc:
-            self.energy_data["dc"]["voltage"] = round(dc["REG_DC_VOLTAGE"] * self._scale("SCALE_DC_VOLTAGE"), 2)
-            self.energy_data["dc"]["current"] = round(dc["REG_DC_CURRENT"] * self._scale("SCALE_DC_CURRENT"), 2)
+            self._apply_scaled_fields(dc, [
+                ("REG_DC_VOLTAGE", "SCALE_DC_VOLTAGE", "dc", "voltage", 2),
+                ("REG_DC_CURRENT", "SCALE_DC_CURRENT", "dc", "current", 2),
+            ])
             self.energy_data["dc"]["soc"] = round(dc["REG_SOC"], 1)
         else:
             error = True
@@ -178,8 +162,10 @@ class Samlex(Inverter):
         # AC input / shore power (batch)
         ac_in = self._read_group(["REG_AC_IN_VOLTAGE", "REG_AC_IN_CURRENT", "REG_AC_IN_CONNECTED"])
         if ac_in:
-            self.energy_data["ac_in"]["voltage"] = round(ac_in["REG_AC_IN_VOLTAGE"] * self._scale("SCALE_AC_IN_VOLTAGE"), 1)
-            self.energy_data["ac_in"]["current"] = round(ac_in["REG_AC_IN_CURRENT"] * self._scale("SCALE_AC_IN_CURRENT"), 2)
+            self._apply_scaled_fields(ac_in, [
+                ("REG_AC_IN_VOLTAGE",  "SCALE_AC_IN_VOLTAGE",  "ac_in", "voltage", 1),
+                ("REG_AC_IN_CURRENT",  "SCALE_AC_IN_CURRENT",  "ac_in", "current", 2),
+            ])
             self.energy_data["ac_in"]["connected"] = ac_in["REG_AC_IN_CONNECTED"]
         else:
             error = True
