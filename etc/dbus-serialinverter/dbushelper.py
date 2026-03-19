@@ -3,6 +3,7 @@ import sys
 import os
 import platform
 import dbus
+from pathlib import Path
 
 # Victron packages
 sys.path.insert(
@@ -35,21 +36,33 @@ _PHASE_PATHS = [
 ]
 
 class DbusHelper:
+    _DEFAULT_PREFIX = "com.victronenergy.pvinverter"
+
     def __init__(self, inverter):
         self.inverter = inverter
         self.instance = 1
         self.settings = None
         self.error_count = 0
-        _prefix = getattr(self.inverter, "SERVICE_PREFIX", "com.victronenergy.pvinverter")
+        self._prefix = getattr(inverter, "SERVICE_PREFIX", self._DEFAULT_PREFIX)
         self._dbusservice = VeDbusService(
-            _prefix + "." + self.inverter.port[self.inverter.port.rfind("/") + 1 :],
+            self._prefix + "." + Path(self.inverter.port).name,
             get_bus(),
         )
 
+    def _get_prefix(self):
+        """Return the cached service prefix, falling back to inverter attribute lookup.
+
+        Provides a safe access path for code paths where __init__ was bypassed (e.g. tests).
+        """
+        try:
+            return self._prefix
+        except AttributeError:
+            return getattr(self.inverter, "SERVICE_PREFIX", self._DEFAULT_PREFIX)
+
     def setup_instance(self):
-        inverter_id = self.inverter.port[self.inverter.port.rfind("/") + 1 :]
+        inverter_id = Path(self.inverter.port).name
         path = "/Settings/Devices/serialinverter"
-        _prefix = getattr(self.inverter, "SERVICE_PREFIX", "com.victronenergy.pvinverter")
+        _prefix = self._get_prefix()
         if _prefix == "com.victronenergy.vebus":
             default_instance = "vebus:257"  # vebus devices use 257-261 range
         else:
@@ -84,8 +97,8 @@ class DbusHelper:
         # and notify of all the attributes we intend to update
         # This is only called once when a inverter is initiated
         self.setup_instance()
-        short_port = self.inverter.port[self.inverter.port.rfind("/") + 1 :]
-        _prefix = getattr(self.inverter, "SERVICE_PREFIX", "com.victronenergy.pvinverter")
+        short_port = Path(self.inverter.port).name
+        _prefix = self._get_prefix()
         logger.info("%s.%s", _prefix, short_port)
 
         # Get the settings for the inverter
@@ -162,7 +175,7 @@ class DbusHelper:
     def publish_inverter(self, loop):
         # This is called every inverter.poll_interval milli second as set up per inverter type to read and update the data
         # Only pvinverter service type exposes /Ac/PowerLimit; vebus devices leave power_limit as None
-        _prefix = getattr(self.inverter, "SERVICE_PREFIX", "com.victronenergy.pvinverter")
+        _prefix = self._get_prefix()
         if _prefix != "com.victronenergy.vebus":
             self.inverter.energy_data["overall"]["power_limit"] = self._dbusservice["/Ac/PowerLimit"]
         try:
@@ -195,7 +208,7 @@ class DbusHelper:
             loop.quit()
 
     def publish_dbus(self):
-        _prefix = getattr(self.inverter, "SERVICE_PREFIX", "com.victronenergy.pvinverter")
+        _prefix = self._get_prefix()
 
         if _prefix == "com.victronenergy.vebus":
             # vebus inverter/charger publish
