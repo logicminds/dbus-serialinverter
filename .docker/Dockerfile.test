@@ -1,0 +1,6 @@
+FROM victronenergy/venus-docker:latest
+
+# Install test dependencies on top of the VenusOS stack
+RUN pip3 install --no-cache-dir pytest pytest-cov
+
+WORKDIR /workspace

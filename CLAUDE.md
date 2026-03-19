@@ -64,11 +64,11 @@ POSITION=1           # 0=AC input 1, 1=AC output, 2=AC input 2
 # 1. Lint
 ruff check etc/dbus-serialinverter/*.py tests/
 
-# 2. Tests with coverage (must stay ≥ 60%)
-python -m pytest tests/ -v --tb=short --cov --cov-report=term-missing --cov-fail-under=60
+# 2. Tests with coverage (must stay ≥ 80%)
+python -m pytest tests/ -v --tb=short --cov --cov-report=term-missing --cov-fail-under=80
 ```
 
-CI enforces the same checks on every push and PR. A commit that breaks lint or drops below 60% coverage will fail the pipeline.
+CI enforces the same checks on every push and PR. A commit that breaks lint or drops below 80% coverage will fail the pipeline.
 
 ## Running Tests
 
@@ -104,6 +104,7 @@ Test files mirror todo numbers:
 | `test_013_solis_power_limit_write.py` | Power limit write trigger, value encoding, clamping |
 | `test_014_get_inverter_retry.py` | `get_inverter()` retry loop (3 rounds, sleep, type ordering) |
 | `test_015_regression_stubs.py` | `xfail(strict=True)` stubs for open todos 006–011, 013–014 |
+| `test_036_glib_integration.py` | GLib conditional real/mock dispatch; MainLoop lifecycle, poll integration, DBusGMainLoop init |
 
 When adding a new inverter or fixing a bug, add a corresponding test in `tests/` and verify it passes before committing.
 

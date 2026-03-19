@@ -1,0 +1,9 @@
+name: dbus-serialinverter
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pygobject>=3.42
+  - pytest>=7.0
+  - pytest-cov>=4.0

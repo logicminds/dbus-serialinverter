@@ -16,6 +16,7 @@ import os
 import types
 import logging
 import configparser
+import warnings
 import unittest.mock as mock
 
 import pytest
@@ -25,6 +26,15 @@ import pytest
 _DRIVER_DIR = os.path.join(os.path.dirname(__file__), "..", "etc", "dbus-serialinverter")
 if _DRIVER_DIR not in sys.path:
     sys.path.insert(0, _DRIVER_DIR)
+
+# ── GLib availability detection ───────────────────────────────────────────────
+# Attempt the real import before installing stubs. setdefault is a no-op if the
+# real module is already in sys.modules, so the stub block below is safe either way.
+try:
+    from gi.repository import GLib as _real_glib  # noqa: F401
+    _GLIB_AVAILABLE = True
+except ImportError:
+    _GLIB_AVAILABLE = False
 
 # ── VenusOS / D-Bus stubs ─────────────────────────────────────────────────────
 
@@ -176,6 +186,35 @@ def fake_dbus_service():
     # publish_inverter() reads /Ac/PowerLimit to populate power_limit
     svc._store["/Ac/PowerLimit"] = 800.0
     return svc
+
+
+# ── GLib fixtures ─────────────────────────────────────────────────────────────
+
+@pytest.fixture(scope="session")
+def _glib_session_warning():
+    """Emit once per session when GLib tests fall back to mock stubs."""
+    if not _GLIB_AVAILABLE:
+        warnings.warn(
+            "gi.repository.GLib is not installed — GLib integration tests are running "
+            "against mock stubs. Install python3-gi for full fidelity.",
+            UserWarning,
+            stacklevel=2,
+        )
+
+
+@pytest.fixture
+def glib(_glib_session_warning):
+    """
+    Provides gi.repository.GLib (real or mock) to tests.
+
+    Real GLib is returned when python3-gi is installed.
+    Falls back to the hollow stub when not installed, after emitting a
+    session-scoped UserWarning.
+    """
+    if _GLIB_AVAILABLE:
+        from gi.repository import GLib
+        return GLib
+    return sys.modules["gi.repository.GLib"]
 
 
 @pytest.fixture
