@@ -86,7 +86,7 @@ class DbusHelper:
         self.setup_instance()
         short_port = self.inverter.port[self.inverter.port.rfind("/") + 1 :]
         _prefix = getattr(self.inverter, "SERVICE_PREFIX", "com.victronenergy.pvinverter")
-        logger.info("%s" % (_prefix + "." + short_port))
+        logger.info("%s.%s", _prefix, short_port)
 
         # Get the settings for the inverter
         if not self.inverter.get_settings():
@@ -188,6 +188,8 @@ class DbusHelper:
                     logger.warning("Inverter seems to be offline, quitting!")
                     loop.quit()
 
+        except (KeyboardInterrupt, SystemExit):
+            raise
         except Exception:
             logger.exception("Unhandled exception in publish_inverter, quitting")
             loop.quit()
@@ -231,4 +233,4 @@ class DbusHelper:
             index = 0  # Overflow from 255 to 0
         self._dbusservice["/UpdateIndex"] = index
 
-        logger.debug("published to dbus [%s]" % str(self.inverter.energy_data["overall"]["ac_power"]))
+        logger.debug("published to dbus [%s]", self.inverter.energy_data["overall"]["ac_power"])
