@@ -30,6 +30,21 @@ jobs:
       - name: Run tests with coverage
         run: python -m pytest tests/ -v --tb=short --cov --cov-report=term-missing --cov-fail-under=80
 
+  test-glib:
+    name: Test with real GLib (Venus-based image)
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/dbus-serialinverter-test:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run tests (real GLib)
+        run: python3 -m pytest tests/ -v --tb=short --cov --cov-report=term-missing --cov-fail-under=80
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
