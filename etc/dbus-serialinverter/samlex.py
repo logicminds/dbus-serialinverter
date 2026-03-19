@@ -1,18 +1,8 @@
 # -*- coding: utf-8 -*-
-import sys
-import os
 
 from inverter import Inverter
 from utils import logger
 import utils
-
-sys.path.insert(
-    1,
-    os.path.join(
-        os.path.dirname(__file__),
-        "/opt/victronenergy/dbus-serialinverter/pymodbus",
-    ),
-)
 
 from pymodbus.client import ModbusSerialClient
 

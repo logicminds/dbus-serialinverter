@@ -3,6 +3,7 @@
 
 line-length = 120
 target-version = "py38"
+exclude = ["etc/dbus-serialinverter/pymodbus"]
 
 [lint]
 select = ["E", "F", "W"]
