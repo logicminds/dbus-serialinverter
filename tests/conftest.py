@@ -15,6 +15,7 @@ import sys
 import os
 import types
 import logging
+import configparser
 import unittest.mock as mock
 
 import pytest
@@ -34,8 +35,9 @@ for _mod in ["dbus", "gi", "gi.repository", "gi.repository.GLib"]:
 class _VeDbusService:
     """Dict-backed stub for VeDbusService. Supports add_path / get / set."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, service_name=None, *args, **kwargs):
         self._store = {}
+        self.service_name = service_name  # captured for service-type regression tests
 
     def add_path(self, path, value=None, writeable=False, gettextcallback=None):
         self._store[path] = value
@@ -106,6 +108,25 @@ _utils_stub.PUBLISH_CONFIG_VALUES = 0
 _utils_stub.DRIVER_VERSION = "0.1"
 _utils_stub.DRIVER_SUBVERSION = ".1"
 _utils_stub.publish_config_variables = lambda *a: None
+
+# configparser stub used by samlex.py (and any future driver that reads config sections).
+# Default: [SAMLEX_REGISTERS] section present but all values are '???' (unconfigured).
+# Tests that need valid register values can call:
+#   utils.config.set('SAMLEX_REGISTERS', 'REG_IDENTITY', '100')
+_samlex_cfg = configparser.ConfigParser()
+_samlex_cfg.add_section("SAMLEX_REGISTERS")
+for _k in (
+    "REG_AC_OUT_VOLTAGE", "REG_AC_OUT_CURRENT", "REG_AC_OUT_POWER",
+    "SCALE_AC_OUT_VOLTAGE", "SCALE_AC_OUT_CURRENT", "SCALE_AC_OUT_POWER",
+    "REG_DC_VOLTAGE", "REG_DC_CURRENT", "REG_SOC",
+    "SCALE_DC_VOLTAGE", "SCALE_DC_CURRENT",
+    "REG_AC_IN_VOLTAGE", "REG_AC_IN_CURRENT", "REG_AC_IN_CONNECTED",
+    "SCALE_AC_IN_VOLTAGE", "SCALE_AC_IN_CURRENT",
+    "REG_FAULT", "REG_CHARGE_STATE",
+    "REG_IDENTITY", "IDENTITY_VALUE",
+):
+    _samlex_cfg.set("SAMLEX_REGISTERS", _k, "???")
+_utils_stub.config = _samlex_cfg
 
 sys.modules["utils"] = _utils_stub
 

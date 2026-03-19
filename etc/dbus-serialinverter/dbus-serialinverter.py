@@ -19,9 +19,11 @@ import utils
 from inverter import Inverter
 from dummy import Dummy
 from solis import Solis
+from samlex import Samlex
 
 _REAL_INVERTER_TYPES = [
-    {"inverter": Solis, "baudrate": 9600, "slave": 1},
+    {"inverter": Solis,   "baudrate": 9600, "slave": 1},
+    {"inverter": Samlex,  "baudrate": 9600, "slave": 1},  # after Solis; silently skipped if registers not configured
 ]
 
 # Dummy is only included when explicitly configured — never in auto-detect.
