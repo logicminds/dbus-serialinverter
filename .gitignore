@@ -2,3 +2,6 @@
 todos
 __pycache__
 .coverage
+# pymodbus version management (update_pymodbus.py state and versioned dirs)
+etc/dbus-serialinverter/.pymodbus-state.json
+etc/dbus-serialinverter/pymodbus-*/
