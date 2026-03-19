@@ -154,8 +154,8 @@ def test_main_runs_mainloop_on_success(monkeypatch):
     # Patch DbusHelper in the loaded module's namespace (from dbushelper import DbusHelper
     # creates a local binding — patching the source module does not affect it)
     mod.DbusHelper = mock.MagicMock(return_value=fake_helper)
-    mod.gobject = mock.MagicMock()
-    mod.gobject.MainLoop.return_value = fake_loop
+    mod.GLib = mock.MagicMock()
+    mod.GLib.MainLoop.return_value = fake_loop
     mod.DBusGMainLoop = mock.MagicMock(return_value=None)
 
     mod.main()
@@ -187,7 +187,7 @@ def test_main_exits_when_setup_vedbus_fails(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["dbus-serialinverter.py", "/dev/null"])
 
     mod.DbusHelper = mock.MagicMock(return_value=fake_helper)
-    mod.gobject = mock.MagicMock()
+    mod.GLib = mock.MagicMock()
     mod.DBusGMainLoop = mock.MagicMock(return_value=None)
 
     with pytest.raises(SystemExit) as exc:
@@ -195,28 +195,45 @@ def test_main_exits_when_setup_vedbus_fails(monkeypatch):
     assert exc.value.code == 1
 
 
-# ── main(): get_port() falls back when no argv ────────────────────────────────
+# ── main(): get_port() exits when no argv ─────────────────────────────────────
 
-def test_main_get_port_fallback(monkeypatch):
-    """get_port() returns '/dev/tty/USB9' when no argument is passed."""
+def test_main_get_port_no_arg_exits(monkeypatch):
+    """get_port() calls sys.exit(1) when no port argument is passed."""
+    mod = _load_module("Dummy")
+    monkeypatch.setattr(sys, "argv", ["dbus-serialinverter.py"])
+
+    with pytest.raises(SystemExit) as exc:
+        mod.main()
+    assert exc.value.code == 1
+
+
+def test_main_get_port_invalid_path_exits(monkeypatch):
+    """get_port() calls sys.exit(1) when the port path fails validation."""
+    mod = _load_module("Dummy")
+    monkeypatch.setattr(sys, "argv", ["dbus-serialinverter.py", "/etc/passwd"])
+
+    with pytest.raises(SystemExit) as exc:
+        mod.main()
+    assert exc.value.code == 1
+
+
+def test_main_get_port_accepts_valid_paths(monkeypatch):
+    """get_port() accepts well-formed /dev/tty* and /dev/null paths."""
     mod = _load_module("Dummy")
     monkeypatch.setattr(mod, "sleep", mock.MagicMock())
 
-    # Capture which port is passed to the inverter constructor
-    ports_seen = []
     fail_class = type("_Fail", (), {
-        "__init__": lambda self, port, **kw: ports_seen.append(port) or None,
+        "__init__": lambda self, **kw: None,
         "test_connection": lambda self: False,
     })
     mod.expected_inverter_types = [{"inverter": fail_class, "baudrate": 0, "slave": 0}]
 
-    # No port argument — get_port() should fall back to "/dev/tty/USB9"
-    monkeypatch.setattr(sys, "argv", ["dbus-serialinverter.py"])
-
-    with pytest.raises(SystemExit):
-        mod.main()
-
-    assert ports_seen[0] == "/dev/tty/USB9"
+    for valid_port in ["/dev/ttyUSB0", "/dev/ttyS0", "/dev/ttyAMA0", "/dev/null"]:
+        monkeypatch.setattr(sys, "argv", ["dbus-serialinverter.py", valid_port])
+        with pytest.raises(SystemExit) as exc:
+            mod.main()
+        # Should exit with 1 (no inverter), not due to port validation
+        assert exc.value.code == 1
 
 
 # ── main(): KeyboardInterrupt exits cleanly ───────────────────────────────────
@@ -246,8 +263,8 @@ def test_main_keyboard_interrupt_exits_cleanly(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["dbus-serialinverter.py", "/dev/null"])
 
     mod.DbusHelper = mock.MagicMock(return_value=fake_helper)
-    mod.gobject = mock.MagicMock()
-    mod.gobject.MainLoop.return_value = fake_loop
+    mod.GLib = mock.MagicMock()
+    mod.GLib.MainLoop.return_value = fake_loop
     mod.DBusGMainLoop = mock.MagicMock(return_value=None)
 
     # Must not raise

@@ -6,6 +6,7 @@ import types
 import logging
 import configparser
 import unittest.mock as mock
+import pytest
 
 for mod in ["dbus", "gi", "gi.repository", "gi.repository.GLib",
             "pymodbus", "pymodbus.client", "pymodbus.constants", "pymodbus.payload"]:
@@ -139,6 +140,37 @@ def test_returns_true_when_identity_register_matches():
     assert s.test_connection() is True
 
 
+def test_reg_raises_on_negative_address():
+    """_reg() must raise ValueError when the configured address is negative."""
+    s = _make_samlex()
+    cfg = _all_configured_config()
+    cfg.set("SAMLEX_REGISTERS", "REG_IDENTITY", "-1")
+    utils_stub.config = cfg
+    with pytest.raises(ValueError, match="out of valid Modbus range"):
+        s._reg("REG_IDENTITY")
+
+
+def test_reg_raises_on_address_above_65535():
+    """_reg() must raise ValueError when the configured address exceeds 65535."""
+    s = _make_samlex()
+    cfg = _all_configured_config()
+    cfg.set("SAMLEX_REGISTERS", "REG_IDENTITY", "65536")
+    utils_stub.config = cfg
+    with pytest.raises(ValueError, match="out of valid Modbus range"):
+        s._reg("REG_IDENTITY")
+
+
+def test_reg_accepts_boundary_addresses():
+    """_reg() must accept 0 and 65535 as valid Modbus register addresses."""
+    s = _make_samlex()
+    cfg = _all_configured_config()
+    utils_stub.config = cfg
+    cfg.set("SAMLEX_REGISTERS", "REG_IDENTITY", "0")
+    assert s._reg("REG_IDENTITY") == 0
+    cfg.set("SAMLEX_REGISTERS", "REG_IDENTITY", "65535")
+    assert s._reg("REG_IDENTITY") == 65535
+
+
 if __name__ == "__main__":
     test_returns_false_when_section_missing()
     test_returns_false_when_all_values_are_placeholder()
@@ -146,4 +178,7 @@ if __name__ == "__main__":
     test_returns_false_when_value_is_non_numeric()
     test_attempts_modbus_when_all_configured()
     test_returns_true_when_identity_register_matches()
+    test_reg_raises_on_negative_address()
+    test_reg_raises_on_address_above_65535()
+    test_reg_accepts_boundary_addresses()
     print("All 030 tests passed.")

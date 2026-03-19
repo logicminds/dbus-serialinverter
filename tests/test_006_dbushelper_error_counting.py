@@ -152,6 +152,42 @@ def test_success_after_failures_resets_count():
     assert helper.error_count == 0
 
 
+def test_keyboard_interrupt_propagates():
+    """KeyboardInterrupt in refresh_data must propagate out of publish_inverter."""
+    helper = _make_helper(refresh_returns=True)
+
+    def _raise_ki():
+        raise KeyboardInterrupt
+
+    helper.inverter.refresh_data = _raise_ki
+    loop = _FakeLoop()
+    raised = False
+    try:
+        helper.publish_inverter(loop)
+    except KeyboardInterrupt:
+        raised = True
+    assert raised, "KeyboardInterrupt must propagate"
+    assert not loop.quit_called
+
+
+def test_system_exit_propagates():
+    """SystemExit in refresh_data must propagate out of publish_inverter."""
+    helper = _make_helper(refresh_returns=True)
+
+    def _raise_se():
+        raise SystemExit(0)
+
+    helper.inverter.refresh_data = _raise_se
+    loop = _FakeLoop()
+    raised = False
+    try:
+        helper.publish_inverter(loop)
+    except SystemExit:
+        raised = True
+    assert raised, "SystemExit must propagate"
+    assert not loop.quit_called
+
+
 if __name__ == "__main__":
     test_success_resets_error_count_to_zero()
     test_success_sets_online_true()
@@ -161,4 +197,6 @@ if __name__ == "__main__":
     test_error_count_59_does_not_call_loop_quit()
     test_error_count_60_calls_loop_quit()
     test_success_after_failures_resets_count()
+    test_keyboard_interrupt_propagates()
+    test_system_exit_propagates()
     print("All 006 tests passed.")

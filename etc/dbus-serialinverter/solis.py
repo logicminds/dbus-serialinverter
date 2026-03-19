@@ -1,22 +1,19 @@
 # -*- coding: utf-8 -*-
 
-from inverter import Inverter
+from modbus_inverter import ModbusInverter
 from utils import logger
 import utils
 
-from pymodbus.client import ModbusSerialClient
 from pymodbus.constants import Endian
 from pymodbus.payload import BinaryPayloadDecoder
 
-class Solis(Inverter):
+class Solis(ModbusInverter):
     INVERTERTYPE = "Solis"
 
     def __init__(self, port, baudrate, slave):
-        super(Solis, self).__init__(port, baudrate, slave)
+        super().__init__(port, baudrate, slave)
         self.type = self.INVERTERTYPE
-
-        self.client = ModbusSerialClient(method = 'rtu', port = port, baudrate = baudrate, stopbits = 1, parity = 'N', bytesize = 8, timeout = 1)
-        logger.info("Creating ModbusSerialClient on port %s with baudrate %s" % (port, baudrate))
+        logger.info("Creating ModbusSerialClient on port %s with baudrate %s", port, baudrate)
 
     def test_connection(self):
         try:
@@ -24,11 +21,11 @@ class Solis(Inverter):
             # Product model
             success, self.product_model = self.read_input_registers(2999, 1, "u16", 1, 0)
             if (success):
-                logger.debug("Product model: %s" % self.product_model)
+                logger.debug("Product model: %s", self.product_model)
                 if (self.product_model == 224):
                     return True
                 else:
-                    logger.warning("Unsupported product model: %s" % self.product_model)
+                    logger.warning("Unsupported product model: %s", self.product_model)
                     return False
             else:
                 return False
@@ -45,7 +42,7 @@ class Solis(Inverter):
 
         # Software version
         success, self.hardware_version = self.read_input_registers(3000, 1, "u16", 1, 0)
-        logger.debug("DSP version: %s" % self.hardware_version)
+        logger.debug("DSP version: %s", self.hardware_version)
 
         # Serial
         res = self.client.read_input_registers(address = 3060,
@@ -58,7 +55,7 @@ class Solis(Inverter):
                 serialparts.append((hex(x)[2:])[::-1])
 
             self.serial_number = ''.join(serialparts)
-            logger.debug("Serial: %s" % self.serial_number)
+            logger.debug("Serial: %s", self.serial_number)
         else:
             logger.debug("Error reading serial number")
             return False
@@ -69,7 +66,7 @@ class Solis(Inverter):
             power_limit_watts = float(self.max_ac_power * (int(power_limit) / 100))
             self.energy_data['overall']['power_limit'] = power_limit_watts
             self.energy_data['overall']['active_power_limit'] = power_limit_watts
-            logger.debug("Active power limit: %d W (%d %%)" % (power_limit_watts, power_limit))
+            logger.debug("Active power limit: %d W (%d %%)", int(power_limit_watts), int(power_limit))
 
         return True
 
@@ -80,12 +77,6 @@ class Solis(Inverter):
         result = self.read_status_data()
         return result
 
-    def _ensure_connected(self):
-        """Return True if the Modbus connection is open, connecting once if needed."""
-        if self.client.is_socket_open():
-            return True
-        return self.client.connect()
-
     def read_input_registers(self, address, count, data_type, scale, digits):
         connection = self._ensure_connected()
         if (connection):
@@ -93,9 +84,12 @@ class Solis(Inverter):
                                     count = count,
                                     slave = self.slave)
 
-            logger.debug("Read input register - address=%s, count=%s, slave=%s" % (address, count, self.slave))
+            logger.debug("Read input register - address=%s, count=%s, slave=%s", address, count, self.slave)
 
             if not res.isError():
+                if len(res.registers) < count:
+                    logger.error("Insufficient registers: expected %d, got %d", count, len(res.registers))
+                    return False, 0
                 decoder = BinaryPayloadDecoder.fromRegisters(res.registers, Endian.Big)
 
                 if (data_type == 'string'):
@@ -107,17 +101,17 @@ class Solis(Inverter):
                 elif (data_type == 'u32'):
                     data = decoder.decode_32bit_uint()
                 else:
-                    logger.warning("Unsupported data type specified: %s" % data_type)
+                    logger.warning("Unsupported data type specified: %s", data_type)
                     return False, 0
 
-                logger.debug("Register: %s - Raw data: %s" % (address, data))
+                logger.debug("Register: %s - Raw data: %s", address, data)
 
                 # Scale
                 data = round(data * scale, digits)
-                logger.debug("Register: %s - Scaled data: %s" % (address, data))
+                logger.debug("Register: %s - Scaled data: %s", address, data)
                 return True, data
             else:
-                logger.error("Error reading register %s" % address)
+                logger.error("Error reading register %s", address)
                 logger.debug(res)
         else:
             logger.error("No connection")
@@ -128,33 +122,24 @@ class Solis(Inverter):
         connection = self._ensure_connected()
         if (connection):
             res = self.client.write_registers(address, value, slave = self.slave)
-            logger.debug("Write register - address=%s, value=%s, slave=%s" % (address, value, self.slave))
+            logger.debug("Write register - address=%s, value=%s, slave=%s", address, value, self.slave)
             if not res.isError():
                 logger.debug(res)
                 return True
             else:
-                logger.error("Error writing register %s" % address)
+                logger.error("Error writing register %s", address)
         else:
             logger.error("No connection")
 
         return False
 
     def apply_power_limit(self, watts):
+        if not self.max_ac_power:
+            logger.error("max_ac_power not set, cannot apply power limit")
+            return False
         new_pct = max(0, min(100, round(watts / (self.max_ac_power / 100))))
-        logger.info("Applying power limit: %d W (%d %%)" % (watts, new_pct))
+        logger.info("Applying power limit: %d W (%d %%)", int(watts), int(new_pct))
         return self.write_registers(3051, new_pct * 100)
-
-    def _read_batch(self, address, count):
-        """Read `count` raw u16 registers from `address`. Returns (success, list[int])."""
-        if not self._ensure_connected():
-            logger.error("No connection")
-            return False, []
-        res = self.client.read_input_registers(address=address, count=count, slave=self.slave)
-        logger.debug("Read batch - address=%s, count=%s, slave=%s" % (address, count, self.slave))
-        if res.isError():
-            logger.error("Error reading registers %s-%s" % (address, address + count - 1))
-            return False, []
-        return True, res.registers
 
     def read_status_data(self):
         error = False
@@ -236,7 +221,7 @@ class Solis(Inverter):
             self.status = 8
             error = True
 
-        logger.debug("Inverter status: %s" % self.status)
+        logger.debug("Inverter status: %s", self.status)
 
         # Batch 5: active power limit (3049, 1 reg) — read only
         ok, regs = self._read_batch(3049, 1)
@@ -244,7 +229,7 @@ class Solis(Inverter):
             power_limit_pct = round(regs[0] * 0.01, 0)
             power_limit_watts = float(self.max_ac_power * (int(power_limit_pct) / 100))
             self.energy_data['overall']['active_power_limit'] = power_limit_watts
-            logger.debug("Active power limit: %d W (%d %%)" % (power_limit_watts, power_limit_pct))
+            logger.debug("Active power limit: %d W (%d %%)", power_limit_watts, power_limit_pct)
         else:
             error = True
 

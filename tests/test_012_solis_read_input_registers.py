@@ -85,7 +85,7 @@ def test_u16_decode_with_scale():
 def test_u32_decode():
     client = mock.MagicMock()
     client.connect.return_value = True
-    client.read_input_registers.return_value = _make_result([1000])
+    client.read_input_registers.return_value = _make_result([1000, 0])
     s = _make_solis_with_client(client)
     success, val = s.read_input_registers(3004, 2, "u32", 1, 0)
     assert success is True
@@ -95,7 +95,7 @@ def test_u32_decode():
 def test_float_decode():
     client = mock.MagicMock()
     client.connect.return_value = True
-    client.read_input_registers.return_value = _make_result([230])
+    client.read_input_registers.return_value = _make_result([230, 0])
     s = _make_solis_with_client(client)
     success, val = s.read_input_registers(3035, 2, "float", 1, 2)
     assert success is True
@@ -111,7 +111,7 @@ def test_string_decode_raises_type_error():
     """
     client = mock.MagicMock()
     client.connect.return_value = True
-    client.read_input_registers.return_value = _make_result([0])
+    client.read_input_registers.return_value = _make_result([0, 0, 0, 0])
     s = _make_solis_with_client(client)
     try:
         s.read_input_registers(3000, 4, "string", 1, 0)
@@ -181,6 +181,20 @@ def test_write_registers_returns_true_on_success():
     assert result is True
 
 
+def test_insufficient_registers_returns_false():
+    """If the response has fewer registers than requested, return (False, 0)."""
+    client = mock.MagicMock()
+    client.connect.return_value = True
+    result = mock.MagicMock()
+    result.isError.return_value = False
+    result.registers = []  # 0 registers returned for a count=2 request
+    client.read_input_registers.return_value = result
+    s = _make_solis_with_client(client)
+    success, val = s.read_input_registers(3035, 2, "u16", 1, 0)
+    assert success is False
+    assert val == 0
+
+
 if __name__ == "__main__":
     test_u16_decode_with_scale()
     test_u32_decode()
@@ -192,4 +206,5 @@ if __name__ == "__main__":
     test_write_registers_returns_false_on_connection_failure()
     test_write_registers_returns_false_on_error_response()
     test_write_registers_returns_true_on_success()
+    test_insufficient_registers_returns_false()
     print("All 012 tests passed.")

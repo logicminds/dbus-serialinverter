@@ -73,9 +73,10 @@ def _make_client(address_regs=None, fail_addresses=None):
             res.isError.return_value = True
             res.registers = []
             return res
-        raw = list(address_regs.get(address, [0]))
-        while len(raw) < count:
-            raw.append(0)
+        raw = []
+        for offset in range(count):
+            vals = address_regs.get(address + offset, [0])
+            raw.append(vals[0] if vals else 0)
         res.isError.return_value = False
         res.registers = raw
         return res

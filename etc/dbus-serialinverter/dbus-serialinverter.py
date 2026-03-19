@@ -1,16 +1,14 @@
 #!/usr/bin/env python
 import sys
+import re
 
 from time import sleep
 from typing import Union
-from threading import Thread, Lock
+from threading import Lock
 
 from dbus.mainloop.glib import DBusGMainLoop
 
-if sys.version_info.major == 2:
-    import gobject
-else:
-    from gi.repository import GLib as gobject
+from gi.repository import GLib
 
 from dbushelper import DbusHelper
 from utils import logger
@@ -45,17 +43,10 @@ def main():
         if not _poll_lock.acquire(blocking=False):
             logger.warning("Poll skipped: previous poll still running")
             return True
-
-        def _run():
-            try:
-                helper.publish_inverter(loop)
-            finally:
-                _poll_lock.release()
-
-        poller = Thread(target=_run)
-        # Thread will die with us if daemon
-        poller.daemon = True
-        poller.start()
+        try:
+            helper.publish_inverter(loop)
+        finally:
+            _poll_lock.release()
         return True
 
     def get_inverter(_port) -> Union[Inverter, None]:
@@ -82,13 +73,14 @@ def main():
         return None
 
     def get_port() -> str:
-        # Get the port we need to use from the argument
-        if len(sys.argv) > 1:
-            return sys.argv[1]
-        else:
-            # just for MNB-SPI
-            logger.info("No Port needed")
-            return "/dev/tty/USB9"
+        if len(sys.argv) < 2:
+            logger.error("Usage: dbus-serialinverter.py <port>")
+            sys.exit(1)
+        port = sys.argv[1]
+        if not re.match(r"^/dev/(tty[A-Za-z0-9_]+|null)$", port):
+            logger.error("Invalid port path: %s", port)
+            sys.exit(1)
+        return port
 
     logger.info("Start dbus-serialinverter")
 
@@ -103,9 +95,7 @@ def main():
 
     # Have a mainloop, so we can send/receive asynchronous calls to and from dbus
     DBusGMainLoop(set_as_default=True)
-    if sys.version_info.major == 2:
-        gobject.threads_init()
-    mainloop = gobject.MainLoop()
+    mainloop = GLib.MainLoop()
 
     # Get the initial values for the inverter used by setup_vedbus
     helper = DbusHelper(inverter)
@@ -115,7 +105,7 @@ def main():
         sys.exit(1)
 
     # Poll the inverter at INTERVAL and run the main loop
-    gobject.timeout_add(inverter.poll_interval, lambda: poll_inverter(mainloop))
+    GLib.timeout_add(inverter.poll_interval, lambda: poll_inverter(mainloop))
     try:
         mainloop.run()
     except KeyboardInterrupt:

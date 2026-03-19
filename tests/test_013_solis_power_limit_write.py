@@ -158,6 +158,16 @@ def test_apply_power_limit_clamped_when_negative():
     assert written_value == 0, f"Expected 0, got {written_value}"
 
 
+def test_apply_power_limit_returns_false_when_max_ac_power_is_zero():
+    # max_ac_power=0 → guard triggers, returns False without writing
+    s = _make_solis(active_limit_percent=50, max_ac_power=0)
+    write_mock = mock.MagicMock(return_value=True)
+    s.write_registers = write_mock
+    result = s.apply_power_limit(400.0)
+    assert result is False
+    write_mock.assert_not_called()
+
+
 if __name__ == "__main__":
     test_read_status_data_never_writes_when_limit_changes()
     test_read_status_data_never_writes_when_limit_unchanged()
@@ -165,4 +175,5 @@ if __name__ == "__main__":
     test_apply_power_limit_half_power()
     test_apply_power_limit_clamped_when_desired_exceeds_max()
     test_apply_power_limit_clamped_when_negative()
+    test_apply_power_limit_returns_false_when_max_ac_power_is_zero()
     print("All 013 tests passed.")
