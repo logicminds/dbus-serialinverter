@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build artifact and publish release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Build release artifact
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          artifact="dbus-serialinverter-${GITHUB_REF_NAME}.tar.gz"
+          tar -czf "dist/${artifact}" conf etc
+          sha256sum "dist/${artifact}" > "dist/${artifact}.sha256"
+
+      - name: Generate changelog and release notes
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          release_date="$(date -u +%Y-%m-%d)"
+          previous_tag="$(git tag --sort=-creatordate | grep -v "^${tag}$" | head -n 1 || true)"
+
+          if [ -n "${previous_tag}" ]; then
+            commit_range="${previous_tag}..${tag}"
+            compare_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${previous_tag}...${tag}"
+          else
+            commit_range="${tag}"
+            compare_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commits/${tag}"
+          fi
+
+          if git log --pretty=format:'- %s (%h)' "${commit_range}" >/tmp/release_commits.txt \
+            && [ -s /tmp/release_commits.txt ]; then
+            :
+          else
+            printf '%s\n' "- No commit changes found for this tag." > /tmp/release_commits.txt
+          fi
+
+          {
+            echo "## ${tag} (${release_date})"
+            echo
+            echo "### Changes"
+            cat /tmp/release_commits.txt
+            echo
+            echo "### Compare"
+            echo "- ${compare_url}"
+          } > dist/release-notes.md
+
+          {
+            echo "# Changelog"
+            echo
+            cat dist/release-notes.md
+          } > "dist/CHANGELOG-${tag}.md"
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          artifact="dist/dbus-serialinverter-${tag}.tar.gz"
+          checksum="dist/dbus-serialinverter-${tag}.tar.gz.sha256"
+          changelog="dist/CHANGELOG-${tag}.md"
+
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            gh release edit "${tag}" --title "${tag}" --notes-file dist/release-notes.md
+            gh release upload "${tag}" "${artifact}" "${checksum}" "${changelog}" --clobber
+          else
+            gh release create "${tag}" \
+              "${artifact}" \
+              "${checksum}" \
+              "${changelog}" \
+              --title "${tag}" \
+              --notes-file dist/release-notes.md
+          fi
