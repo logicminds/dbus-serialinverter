@@ -126,9 +126,9 @@ Tagged releases are automated with GitHub Actions.
 - Trigger: push a tag matching `v*` (for example `v0.2.0`)
 - Workflow: `.github/workflows/release.yml`
 - Published assets:
-	- `dbus-serialinverter-<tag>.tar.gz` (contains only `conf/` and `etc/`)
-	- `dbus-serialinverter-<tag>.tar.gz.sha256`
-	- `CHANGELOG-<tag>.md`
+  - `dbus-serialinverter-<tag>.tar.gz` (contains only `conf/` and `etc/`)
+  - `dbus-serialinverter-<tag>.tar.gz.sha256`
+  - `CHANGELOG-<tag>.md`
 
 ### Validate release automation safely
 

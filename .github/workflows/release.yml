@@ -33,7 +33,7 @@ jobs:
 
           tag="${GITHUB_REF_NAME}"
           release_date="$(date -u +%Y-%m-%d)"
-          previous_tag="$(git tag --sort=-creatordate | grep -v "^${tag}$" | head -n 1 || true)"
+          previous_tag="$(git describe --tags --match 'v*' --abbrev=0 "${tag}^" 2>/dev/null || true)"
 
           if [ -n "${previous_tag}" ]; then
             commit_range="${previous_tag}..${tag}"
