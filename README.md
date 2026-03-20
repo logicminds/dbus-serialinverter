@@ -11,6 +11,19 @@ Based on https://github.com/Louisvdw/dbus-serialbattery and https://github.com/f
 - Currently testing with https://www.waveshare.com/usb-to-rs485.htm and Solis mini 700 4G inverter
 - Adding inverters like Growatt MIC (RS485) should be pretty easy
 
+## Supported inverter types
+
+- Solis mini series (Modbus RTU)
+- Samlex EVO series inverter/chargers (Modbus RTU over RS485)
+- Dummy inverter (for local testing)
+
+### Samlex support notes
+
+- The Samlex driver is included and can be selected with `TYPE=Samlex` in `etc/dbus-serialinverter/config.ini`.
+- Samlex register addresses are NDA-protected, so `SAMLEX_REGISTERS` values ship as `???` until you fill them from the Samlex Modbus protocol guide.
+- If the `SAMLEX_REGISTERS` section is incomplete, Samlex detection is skipped automatically.
+- Full Samlex model/configuration guidance is available in `docs/samlex.md`.
+
 ## Todo
 - When TYPE is set in config, disable auto detection and use the specified type by default
 
