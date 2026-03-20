@@ -181,7 +181,7 @@ How to populate safely:
 - Copy everything to /data on your VenusOS device (ATTENTION: If /data/conf/serial-starter.d is already there, DO NOT OVERWRITE and add the contents manually!)
 - Connect to your VenusOS device via SSH
 - Get model and serial of your USB-to-Serial-Converter. Example for /dev/ttyUSB0:
-- To prevent other services from bugging your serial converter, modify /etc/udev/rules.d/serial-starter.rules and add following line (replace XXXXXXXX with the values you got in previous step):
+- To prevent other services from bugging your serial converter, modify /etc/udev/rules.d/serial-starter.rules by running this script:
 ```
 #!/bin/bash
 
