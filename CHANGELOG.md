@@ -6,6 +6,11 @@ Starting with tagged releases (`v*`), release notes are generated automatically 
 
 ## Unreleased
 
+### Fix
+
+- Eliminated `WARNING: USING OUTDATED REGISTRATION METHOD!` on startup by passing `register=False`
+  to `VeDbusService` and calling `register()` explicitly after all mandatory D-Bus paths are added.
+
 ### Feature set: Reliability and runtime hardening
 
 - Strengthened startup/config validation and runtime safeguards, including MAX_AC_POWER validation,
