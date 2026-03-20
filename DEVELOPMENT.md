@@ -118,3 +118,29 @@ After the first PR that introduces the `test-glib` job is merged:
 1. Go to **Actions → Build Test Docker Image → Run workflow**
 2. Wait for the push to complete
 3. Subsequent CI runs will pull the image automatically
+
+## Release Workflow
+
+Tagged releases are automated with GitHub Actions.
+
+- Trigger: push a tag matching `v*` (for example `v0.2.0`)
+- Workflow: `.github/workflows/release.yml`
+- Published assets:
+	- `dbus-serialinverter-<tag>.tar.gz` (contains only `conf/` and `etc/`)
+	- `dbus-serialinverter-<tag>.tar.gz.sha256`
+	- `CHANGELOG-<tag>.md`
+
+### Validate release automation safely
+
+Use a temporary tag in your fork or test repository:
+
+```bash
+git tag v0.0.0-test
+git push origin v0.0.0-test
+```
+
+Then verify in the Actions run and GitHub Release page that:
+
+1. The release is created for the tag.
+2. The artifact contains `conf/` and `etc/` only.
+3. Release notes and `CHANGELOG-<tag>.md` reflect commits since the previous tag.

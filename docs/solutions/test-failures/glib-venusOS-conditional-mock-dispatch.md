@@ -183,7 +183,7 @@ test-glib:
       username: ${{ github.actor }}
       password: ${{ secrets.GITHUB_TOKEN }}
   steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - name: Run tests (real GLib)
       run: python3 -m pytest tests/ -v --tb=short --cov --cov-report=term-missing --cov-fail-under=80
 ```
