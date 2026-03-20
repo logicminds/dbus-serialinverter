@@ -47,6 +47,7 @@ class DbusHelper:
         self._dbusservice = VeDbusService(
             self._prefix + "." + Path(self.inverter.port).name,
             get_bus(),
+            register=False,
         )
 
     def _get_prefix(self):
@@ -169,6 +170,8 @@ class DbusHelper:
         logger.info(f"Publish config values = {utils.PUBLISH_CONFIG_VALUES}")
         if utils.PUBLISH_CONFIG_VALUES == 1:
             utils.publish_config_variables(self._dbusservice)
+
+        self._dbusservice.register()
 
         return True
 

@@ -52,6 +52,9 @@ class _VeDbusService:
     def add_path(self, path, value=None, writeable=False, gettextcallback=None):
         self._store[path] = value
 
+    def register(self):
+        pass
+
     def __getitem__(self, path):
         return self._store.get(path)
 
