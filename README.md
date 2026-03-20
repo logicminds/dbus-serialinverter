@@ -42,7 +42,7 @@ chmod +x install.sh
 
 - Pushing a tag that matches `v*` (for example `v0.2.0`) automatically creates or updates a GitHub Release.
 - The release workflow publishes a single runtime artifact that contains only `conf/` and `etc/`:
-	- `dbus-serialinverter-<tag>.tar.gz`
-	- `dbus-serialinverter-<tag>.tar.gz.sha256`
+  - `dbus-serialinverter-<tag>.tar.gz`
+  - `dbus-serialinverter-<tag>.tar.gz.sha256`
 - Release notes are generated from git commits since the previous tag.
 - A generated changelog file is attached to each release as `CHANGELOG-<tag>.md`.
