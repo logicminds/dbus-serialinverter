@@ -41,7 +41,6 @@ REQUIRED_SAMLEX_REGISTERS = (
     "SCALE_AC_OUT_POWER",
     "REG_DC_VOLTAGE",
     "REG_DC_CURRENT",
-    "REG_SOC",
     "SCALE_DC_VOLTAGE",
     "SCALE_DC_CURRENT",
     "REG_AC_IN_VOLTAGE",
@@ -53,6 +52,12 @@ REQUIRED_SAMLEX_REGISTERS = (
     "REG_CHARGE_STATE",
     "REG_IDENTITY",
     "IDENTITY_VALUE",
+)
+
+# Optional registers — read if configured, otherwise skipped.
+# Samlex EVO does not report SOC; a separate Battery Monitor provides it.
+OPTIONAL_SAMLEX_REGISTERS = (
+    "REG_SOC",
 )
 
 
@@ -82,6 +87,17 @@ class Samlex(ModbusInverter):
             except ValueError:
                 return False
         return True
+
+    def _has_register(self, key):
+        """Return True if the optional register key is configured (not '???' or missing)."""
+        val = utils.config.get("SAMLEX_REGISTERS", key, fallback="???").strip()
+        if val == "???":
+            return False
+        try:
+            float(val)
+            return True
+        except ValueError:
+            return False
 
     def _reg(self, key):
         """Return an integer register address or integer value from [SAMLEX_REGISTERS]."""
@@ -190,13 +206,19 @@ class Samlex(ModbusInverter):
             error = True
 
         # DC / battery (batch)
-        dc = self._read_group(["REG_DC_VOLTAGE", "REG_DC_CURRENT", "REG_SOC"])
+        dc_keys = ["REG_DC_VOLTAGE", "REG_DC_CURRENT"]
+        has_soc = self._has_register("REG_SOC")
+        if has_soc:
+            dc_keys.append("REG_SOC")
+        dc = self._read_group(dc_keys)
         if dc:
             self._apply_scaled_fields(dc, [
                 ("REG_DC_VOLTAGE", "SCALE_DC_VOLTAGE", "dc", "voltage", 2),
                 ("REG_DC_CURRENT", "SCALE_DC_CURRENT", "dc", "current", 2, True),
             ])
-            self.energy_data["dc"]["soc"] = round(dc["REG_SOC"], 1)
+            if has_soc:
+                self.energy_data["dc"]["soc"] = round(dc["REG_SOC"], 1)
+            # else: SOC stays None — Battery Monitor provides it
             v = self.energy_data["dc"]["voltage"]
             i = self.energy_data["dc"]["current"]
             self.energy_data["dc"]["power"] = round(v * i, 0) if v is not None and i is not None else None

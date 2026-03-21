@@ -96,7 +96,7 @@ _SCENARIOS = {
         "REG_AC_OUT_VOLTAGE":  _raw(120.0, "0.1"),   # 1200
         "REG_AC_OUT_CURRENT":  _raw(8.33,  "0.01"),  # 833
         "REG_AC_OUT_POWER":    _raw(1000.0,"1.0"),   # 1000
-        "REG_SOC":             85,
+
         "REG_CHARGE_STATE":    2,        # Absorption
         "REG_AC_IN_VOLTAGE":   _raw(120.0, "0.1"),   # 1200
         "REG_AC_IN_CURRENT":   _raw(30.17, "0.01"),  # 3017
@@ -110,7 +110,7 @@ _SCENARIOS = {
         "REG_AC_OUT_VOLTAGE":  _raw(120.0, "0.1"),
         "REG_AC_OUT_CURRENT":  _raw(8.33,  "0.01"),
         "REG_AC_OUT_POWER":    _raw(1000.0,"1.0"),
-        "REG_SOC":             85,
+
         "REG_CHARGE_STATE":    2,
         "REG_AC_IN_VOLTAGE":   _raw(120.0, "0.1"),
         "REG_AC_IN_CURRENT":   _raw(30.17, "0.01"),
@@ -124,7 +124,7 @@ _SCENARIOS = {
         "REG_AC_OUT_VOLTAGE":  _raw(120.0, "0.1"),
         "REG_AC_OUT_CURRENT":  _raw(8.33,  "0.01"),
         "REG_AC_OUT_POWER":    _raw(1000.0,"1.0"),
-        "REG_SOC":             15,       # low SOC
+
         "REG_CHARGE_STATE":    2,
         "REG_AC_IN_VOLTAGE":   _raw(120.0, "0.1"),
         "REG_AC_IN_CURRENT":   _raw(30.17, "0.01"),
@@ -138,7 +138,7 @@ _SCENARIOS = {
         "REG_AC_OUT_VOLTAGE":  _raw(120.0, "0.1"),
         "REG_AC_OUT_CURRENT":  _raw(8.33,  "0.01"),
         "REG_AC_OUT_POWER":    _raw(1000.0,"1.0"),
-        "REG_SOC":             85,
+
         "REG_CHARGE_STATE":    9,        # 9 = Inverting
         "REG_AC_IN_VOLTAGE":   0,        # 0 V disconnected
         "REG_AC_IN_CURRENT":   0,        # 0 A disconnected
@@ -152,7 +152,7 @@ _SCENARIOS = {
         "REG_AC_OUT_VOLTAGE":  _raw(120.0, "0.1"),
         "REG_AC_OUT_CURRENT":  _raw(31.7,  "0.01"),
         "REG_AC_OUT_POWER":    _raw(3800.0,"1.0"),
-        "REG_SOC":             85,
+
         "REG_CHARGE_STATE":    2,
         "REG_AC_IN_VOLTAGE":   _raw(120.0, "0.1"),
         "REG_AC_IN_CURRENT":   _raw(30.17, "0.01"),
@@ -166,7 +166,7 @@ _SCENARIOS = {
         "REG_AC_OUT_VOLTAGE":  _raw(120.0, "0.1"),
         "REG_AC_OUT_CURRENT":  _raw(31.7,  "0.01"),
         "REG_AC_OUT_POWER":    _raw(3800.0,"1.0"),
-        "REG_SOC":             85,
+
         "REG_CHARGE_STATE":    2,
         "REG_AC_IN_VOLTAGE":   _raw(120.0, "0.1"),
         "REG_AC_IN_CURRENT":   _raw(33.0,  "0.01"),  # shore > output (powers load + charges battery)
@@ -180,7 +180,7 @@ _SCENARIOS = {
         "REG_AC_OUT_VOLTAGE":  _raw(120.0,  "0.1"),
         "REG_AC_OUT_CURRENT":  _raw(29.2,   "0.01"),
         "REG_AC_OUT_POWER":    _raw(3500.0, "1.0"),
-        "REG_SOC":             62,
+
         "REG_CHARGE_STATE":    9,         # 9 = Inverting
         "REG_AC_IN_VOLTAGE":   0,
         "REG_AC_IN_CURRENT":   0,
@@ -236,7 +236,8 @@ def _assert_dc_populated(s, scenario):
     assert dc["voltage"]      is not None, f"[{scenario}] dc voltage is None"
     assert dc["current"]      is not None, f"[{scenario}] dc current is None"
     assert dc["power"]        is not None, f"[{scenario}] dc power is None"
-    assert dc["soc"]          is not None, f"[{scenario}] dc soc is None"
+    # SOC is optional — only populated when REG_SOC is configured.
+    # Battery Monitor provides SOC on real Samlex EVO systems.
     assert dc["charge_state"] is not None, f"[{scenario}] dc charge_state is None"
 
 
@@ -275,7 +276,6 @@ def test_normal_dc_values():
     assert abs(dc["voltage"] - 26.4) < 0.2
     assert dc["current"] > 0, "Battery should be charging (positive current)"
     assert dc["power"] > 0,   "DC power should be positive when charging"
-    assert dc["soc"] == 85.0
     assert dc["charge_state"] == 2  # Absorption
 
 
@@ -337,11 +337,6 @@ def test_low_battery_all_fields_populated():
     _assert_dc_populated(s, "low_battery")
     _assert_ac_in_populated(s, "low_battery")
     _assert_status_set(s, "low_battery")
-
-
-def test_low_battery_soc():
-    s = _run("low_battery")
-    assert s.energy_data["dc"]["soc"] == 15.0
 
 
 def test_low_battery_dc_power_non_zero():
@@ -463,11 +458,6 @@ def test_heavy_load_battery_ac_input_disconnected():
 def test_heavy_load_battery_state_is_inverting():
     s = _run("heavy_load_battery")
     assert s.status == 9  # Inverting
-
-
-def test_heavy_load_battery_soc():
-    s = _run("heavy_load_battery")
-    assert s.energy_data["dc"]["soc"] == 62.0
 
 
 if __name__ == "__main__":

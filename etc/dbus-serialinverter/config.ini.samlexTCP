@@ -6,6 +6,9 @@
 #   2. Terminal 2: cp etc/dbus-serialinverter/config.ini.samlexTCP etc/dbus-serialinverter/config.ini
 #   3. Terminal 2: python dbus-serialinverter.py tcp://localhost:5020
 #
+# Or use the helper script:
+#   ./start-tcpinverter.sh --scenario heavy_load_with_input
+#
 # NOTE: These are PLACEHOLDER register addresses for TCP testing only.
 # They do NOT match real Samlex EVO register addresses (which are NDA-protected).
 # This config is for testing the Modbus TCP protocol layer without hardware.
@@ -44,9 +47,9 @@ SCALE_AC_OUT_CURRENT=0.01
 SCALE_AC_OUT_POWER=1.0
 
 # DC / Battery registers
+# Note: Samlex EVO does not report SOC; Battery Monitor provides it.
 REG_DC_VOLTAGE=4115
 REG_DC_CURRENT=4129
-REG_SOC=4048
 SCALE_DC_VOLTAGE=0.1
 SCALE_DC_CURRENT=0.01
 
@@ -60,6 +63,3 @@ SCALE_AC_IN_CURRENT=0.01
 # Status registers
 REG_FAULT=4092
 REG_CHARGE_STATE=4061
-
-# Working status (inverter state)
-REG_WORKING_STATUS=4084

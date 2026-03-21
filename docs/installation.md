@@ -67,7 +67,7 @@ To switch to a different converter cable (or remove the lock entirely), run:
 
 This removes the udev rule and reloads the rules. You can then re-run `./lock-serial-device.sh` to lock a different device. Re-running the lock script when a rule already exists will prompt you to replace it.
 
-### 3. Install and reboot
+### 3. Install
 
 ```bash
 cd /data/etc/dbus-serialinverter
@@ -75,7 +75,16 @@ chmod +x install.sh
 ./install.sh
 ```
 
-Reboot your device.
+If no udev rule exists yet, the installer will automatically run `lock-serial-device.sh` to detect USB serial devices and prompt you to select the one connected to your inverter. This creates a udev rule that tells VenusOS's serial-starter to route your RS485 adapter to this driver.
+
+If you skip this step during install, run it manually later:
+
+```bash
+cd /data/etc/dbus-serialinverter
+./lock-serial-device.sh
+```
+
+Reboot your device after installation.
 
 ### 4. Verify
 
