@@ -6,6 +6,16 @@ Starting with tagged releases (`v*`), release notes are generated automatically 
 
 ## Unreleased
 
+### Feature: Private configuration support for Samlex EVO
+
+- Added two-file configuration system for NDA-protected register values:
+  - `config.ini` — Template with placeholder values (`???`), safe to commit
+  - `config.ini.private` — Actual register values, git-ignored and never committed
+- Updated `utils.py` to load `config.ini.private` if present, overlaying template values
+- Updated `samlex.py` to interpret working status register correctly (value == 1 means AC input normal)
+- Updated `docs/samlex.md` with new configuration workflow and illustrative register examples
+- Added `config.ini.private` to `.gitignore` to prevent accidental commits of NDA-protected data
+
 ### Fix
 
 - Eliminated `WARNING: USING OUTDATED REGISTRATION METHOD!` on startup by passing `register=False`

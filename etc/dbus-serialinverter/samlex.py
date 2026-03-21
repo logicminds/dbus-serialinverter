@@ -170,7 +170,9 @@ class Samlex(ModbusInverter):
                 ("REG_AC_IN_VOLTAGE",  "SCALE_AC_IN_VOLTAGE",  "ac_in", "voltage", 1),
                 ("REG_AC_IN_CURRENT",  "SCALE_AC_IN_CURRENT",  "ac_in", "current", 2),
             ])
-            self.energy_data["ac_in"]["connected"] = ac_in["REG_AC_IN_CONNECTED"]
+            # Working status: 0=Power saving, 1=AC input normal, 2=AC input abnormal, 3=Inverting, 4=Fault
+            # "Connected" means AC input is present and normal (value == 1)
+            self.energy_data["ac_in"]["connected"] = 1 if ac_in["REG_AC_IN_CONNECTED"] == 1 else 0
         else:
             error = True
 

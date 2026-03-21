@@ -1,4 +1,5 @@
 *.log
+docs/private
 todos
 __pycache__
 .coverage
@@ -7,3 +8,5 @@ etc/dbus-serialinverter/.pymodbus-state.json
 etc/dbus-serialinverter/pymodbus-*/
 .ruff_cache
 .pytest_cache
+# Private configuration with real register values (NDA-protected)
+etc/dbus-serialinverter/config.ini.private

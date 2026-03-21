@@ -103,7 +103,12 @@ The slave address can be changed in `config.ini` under `[INVERTER] ADDRESS` if y
 
 ## Getting the Register Map
 
-The EVO series Modbus register addresses are protected by a Samlex NDA and cannot be published in this repository. The driver ships with all register values set to `???` so the code can be shared openly while the actual addresses stay private in your local `config.ini`.
+The EVO series Modbus register addresses are protected by a Samlex NDA and cannot be published in this repository. The driver uses a two-file configuration system:
+
+- **`config.ini`** — Template with placeholder values (`???`), safe to commit
+- **`config.ini.private`** — Your actual register values, git-ignored and never committed
+
+This lets you share the codebase without exposing NDA-protected register addresses.
 
 ### How to request the guide
 
@@ -120,28 +125,40 @@ Contact Samlex technical support:
 
 **What the guide contains:** A table of Modbus input register addresses (in hex), their data types (`uint16`, `int16`), scaling factors, and descriptions of each value — exactly what you need to fill in `config.ini`.
 
-### Filling in `config.ini`
+### Filling in the register map
 
 Once you have the guide:
 
-1. Open `etc/dbus-serialinverter/config.ini`.
-2. In the `[SAMLEX_REGISTERS]` section, replace each `???` with the register address (converted from hex to decimal) or scale factor from the guide.
-3. Save the file and restart the driver.
+1. Create `etc/dbus-serialinverter/config.ini.private` (copy from the template or create new).
+2. In the `[SAMLEX_REGISTERS]` section, add the register address (converted from hex to decimal) and scale factor from the guide.
+3. Also set `[INVERTER] TYPE=Samlex` and your `MAX_AC_POWER`.
+4. Save the file and restart the driver.
 
-The driver validates all values at startup. As long as any key still reads `???`, the Samlex driver is silently skipped during auto-detection and no Modbus traffic is sent.
+The driver validates all values at startup. As long as any key reads `???` in the template, the Samlex driver checks `config.ini.private` for overrides. If private values are missing or incomplete, the Samlex driver is silently skipped during auto-detection and no Modbus traffic is sent.
+
+**Note:** Never commit `config.ini.private` to version control. It is already in `.gitignore`.
 
 ---
 
 ## Configuration
 
-All configuration lives in `etc/dbus-serialinverter/config.ini`.
+Configuration is split across two files in `etc/dbus-serialinverter/`:
+
+| File | Purpose | Commit to git? |
+|------|---------|----------------|
+| `config.ini` | Template with placeholder values (`???`) | Yes |
+| `config.ini.private` | Your actual register values from the Modbus guide | **No** — already in `.gitignore` |
+
+The driver loads `config.ini` first, then overlays `config.ini.private` if present. Values in the private file override the template.
 
 ### `[INVERTER]` section
 
+Set in `config.ini.private` (or edit `config.ini` if you don't need to protect the values):
+
 ```ini
 [INVERTER]
-TYPE=           # Leave blank for auto-detect, or set to "Samlex" to force it
-ADDRESS=1       # Modbus slave address of the inverter (default 1)
+TYPE=Samlex          # Set to "Samlex" to force this driver, or leave blank for auto-detect
+ADDRESS=1            # Modbus slave address of the inverter (default 1)
 POLL_INTERVAL=1000   # How often to poll the inverter, in milliseconds
 MAX_AC_POWER=4000    # Rated output power of your EVO model in watts (2200 for EVO-22xx, 4000 for EVO-40xx)
 PHASE=L1             # AC phase: L1, L2, or L3
@@ -150,38 +167,42 @@ POSITION=1           # 0=AC input 1, 1=AC output, 2=AC input 2
 
 ### `[SAMLEX_REGISTERS]` section
 
+Add to `config.ini.private` with actual values from your Modbus Protocol Guide:
+
 ```ini
 [SAMLEX_REGISTERS]
 # AC output ── register addresses are decimal integers; scales are float multipliers
-REG_AC_OUT_VOLTAGE    = ???   # uint16, AC volts out — e.g. raw 1200 × 0.1 = 120.0 V
-REG_AC_OUT_CURRENT    = ???   # uint16, AC amps out  — e.g. raw 150  × 0.1 = 15.0 A
-REG_AC_OUT_POWER      = 5     # uint16, AC watts out — e.g. raw 600  × 1.0 = 600 W
-SCALE_AC_OUT_VOLTAGE  = ???   # float, e.g. 0.1 or 0.01
-SCALE_AC_OUT_CURRENT  = ???   # float, e.g. 0.1 or 0.01
+REG_AC_OUT_VOLTAGE    = 5     # uint16, AC volts out — e.g. raw 1200 × 0.1 = 120.0 V
+REG_AC_OUT_CURRENT    = 7     # int16, AC amps out  — e.g. raw 150  × 0.1 = 15.0 A
+REG_AC_OUT_POWER      = 9     # int16, AC watts out — e.g. raw 600  × 1.0 = 600 W
+SCALE_AC_OUT_VOLTAGE  = 0.1   # float, e.g. 0.1 or 0.01
+SCALE_AC_OUT_CURRENT  = 0.1   # float, e.g. 0.1 or 0.01
 SCALE_AC_OUT_POWER    = 1.0   # float, usually 1.0 (already in watts)
 
 # DC / battery
 REG_DC_VOLTAGE        = 1     # uint16, battery volts    — e.g. raw 264 × 0.1 = 26.4 V
-REG_DC_CURRENT        = 2     # int16,  battery amps (+charge/-discharge) — e.g. raw 65286 × 0.1 = -25.0 A
-REG_SOC               = ???   # uint16, state of charge 0-100 % (no scaling)
+REG_DC_CURRENT        = 2     # int16,  battery amps (+charge/-discharge)
+REG_SOC               = 4     # uint16, state of charge 0-100 % (no scaling)
 SCALE_DC_VOLTAGE      = 0.1   # float, e.g. 0.1
 SCALE_DC_CURRENT      = 0.1   # float, e.g. 0.1 (sign handled in code)
 
 # AC input / shore power
 REG_AC_IN_VOLTAGE     = 10    # uint16, grid/gen volts  — e.g. raw 120 × 1.0 = 120 V
-REG_AC_IN_CURRENT     = ???   # uint16, grid/gen amps   — e.g. raw 30  × 0.1 = 3.0 A
-REG_AC_IN_CONNECTED   = ???   # uint16, 1 = connected, 0 = disconnected (no scaling)
+REG_AC_IN_CURRENT     = 11    # int16, grid/gen amps   — e.g. raw 30  × 0.1 = 3.0 A
+REG_AC_IN_CONNECTED   = 1     # uint16, working status: 0=Power saving, 1=AC in normal, 2=AC in abnormal, 3=Inverting, 4=Fault
 SCALE_AC_IN_VOLTAGE   = 1.0   # float, e.g. 1.0 or 0.1
-SCALE_AC_IN_CURRENT   = ???   # float, e.g. 0.1 or 0.01
+SCALE_AC_IN_CURRENT   = 0.1   # float, e.g. 0.1 or 0.01
 
 # Status / fault
-REG_FAULT             = ???   # uint16, 0 = no fault; any non-zero → Victron status Error (10)
+REG_FAULT             = 2     # uint16, fault/warn code (0 = no fault)
 REG_CHARGE_STATE      = 8     # uint16, charger state code → published to /VebusChargeState
 
 # Identity — read by test_connection() to confirm a Samlex EVO is on this port
-REG_IDENTITY          = ???   # uint16, register that holds a device model/ID value
-IDENTITY_VALUE        = ???   # integer, expected value in REG_IDENTITY for your specific EVO model (differs per model)
+REG_IDENTITY          = 0     # uint16, register 0 holds device model ID
+IDENTITY_VALUE        = 8722  # integer, 0x2212 = EVO-2212 (decimal 8722), differs per model
 ```
+
+**Important:** The example values above are illustrative only. Use the actual register addresses and scale factors from your Samlex Modbus Protocol Guide.
 
 ---
 
@@ -412,7 +433,7 @@ fault register read fails   →  /State = 10  (Error, conservative)
 
 ### Driver does not appear on D-Bus / auto-detect skips Samlex
 
-The most common cause is unfilled `???` values in `[SAMLEX_REGISTERS]`. Check the log:
+The most common cause is missing or incomplete register values. Check the log:
 
 ```
 tail -f /var/log/dbus-serialinverter.ttyUSB0/current
@@ -424,7 +445,7 @@ You should see:
 Samlex: register map not configured, skipping
 ```
 
-Fill in all 20 register keys in `config.ini` and restart the driver.
+This means `config.ini.private` is missing or has `???` values. Create/edit `etc/dbus-serialinverter/config.ini.private` and fill in all 20 register keys, then restart the driver.
 
 ### `test_connection()` returns False after registers are filled
 
