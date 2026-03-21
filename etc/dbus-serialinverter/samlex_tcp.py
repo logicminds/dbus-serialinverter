@@ -22,8 +22,6 @@ import re
 from samlex import Samlex
 from utils import logger
 
-from pymodbus.client import ModbusTcpClient
-
 
 class SamlexTCP(Samlex):
     """Samlex EVO driver with Modbus TCP support.
@@ -89,6 +87,8 @@ class SamlexTCP(Samlex):
 
     def _init_tcp_client(self, original_port: str, slave: int):
         """Initialize TCP client without calling parent's __init__."""
+        from pymodbus.client import ModbusTcpClient  # deferred: not available in test stubs
+
         # Initialize Inverter base class manually
         from inverter import Inverter
         Inverter.__init__(self, original_port, 0, slave)

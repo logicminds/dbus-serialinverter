@@ -19,24 +19,32 @@ from dummy import Dummy
 from solis import Solis
 from samlex import Samlex
 from samlex_mock import SamlexMock
+from samlex_tcp import SamlexTCP
 
 _REAL_INVERTER_TYPES = [
     {"inverter": Solis,   "baudrate": 9600, "slave": 1},
     {"inverter": Samlex,  "baudrate": 9600, "slave": 1},  # after Solis; silently skipped if registers not configured
 ]
+_TCP_INVERTER_TYPES = [
+    {"inverter": SamlexTCP, "baudrate": 0, "slave": 1},
+]
 
-# Dummy and SamlexMock are only included when explicitly configured — never in auto-detect.
-if utils.INVERTER_TYPE == "Dummy":
-    expected_inverter_types = [{"inverter": Dummy, "baudrate": 0, "slave": 0}]
-elif utils.INVERTER_TYPE == "SamlexMock":
-    expected_inverter_types = [{"inverter": SamlexMock, "baudrate": 0, "slave": 0}]
-elif utils.INVERTER_TYPE == "":
-    expected_inverter_types = _REAL_INVERTER_TYPES
-else:
-    expected_inverter_types = [
-        t for t in _REAL_INVERTER_TYPES
-        if t["inverter"].__name__ == utils.INVERTER_TYPE
-    ]
+
+def _resolve_inverter_types(port: str):
+    """Return the list of inverter types to try based on config and port."""
+    inverter_type = utils.INVERTER_TYPE
+    is_tcp = port.startswith("tcp://")
+
+    if inverter_type == "Dummy":
+        return [{"inverter": Dummy, "baudrate": 0, "slave": 0}]
+    if inverter_type == "SamlexMock":
+        return [{"inverter": SamlexMock, "baudrate": 0, "slave": 0}]
+    if inverter_type == "SamlexTCP" or (inverter_type == "" and is_tcp):
+        return _TCP_INVERTER_TYPES
+    if inverter_type == "":
+        return _REAL_INVERTER_TYPES
+    return [t for t in _REAL_INVERTER_TYPES if t["inverter"].__name__ == inverter_type]
+
 
 def main():
     _poll_lock = Lock()
@@ -55,10 +63,11 @@ def main():
     def get_inverter(_port) -> Union[Inverter, None]:
         # all the different inverters the driver support and need to test for
         # try to establish communications with the inverter 3 times, else exit
+        inverter_types = _resolve_inverter_types(_port)
         count = 3
         while count > 0:
             # create a new inverter object that can read the inverter and run connection test
-            for test in expected_inverter_types:
+            for test in inverter_types:
                 logger.info("Testing " + test["inverter"].__name__)
                 inverterClass = test["inverter"]
                 baudrate = test["baudrate"]
@@ -80,7 +89,9 @@ def main():
             logger.error("Usage: dbus-serialinverter.py <port>")
             sys.exit(1)
         port = sys.argv[1]
-        if not re.match(r"^/dev/(tty[A-Za-z0-9_]+|null)$", port):
+        serial_ok = re.match(r"^/dev/(tty[A-Za-z0-9_]+|null)$", port)
+        tcp_ok = re.match(r"^tcp://[^:]+:\d+$", port)
+        if not serial_ok and not tcp_ok:
             logger.error("Invalid port path: %s", port)
             sys.exit(1)
         return port
