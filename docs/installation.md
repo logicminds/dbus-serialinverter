@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- VenusOS **Large** (Python 3.6+ required for `dataclasses`)
+- VenusOS **Large** (Python 3.8+ required for `dataclasses`)
   - Without it you'll get: `ModuleNotFoundError: No module named 'dataclasses'`
 - A USB-to-Serial converter (e.g. [Waveshare USB to RS485](https://www.waveshare.com/usb-to-rs485.htm))
 
@@ -13,14 +13,11 @@
 SSH into your VenusOS device and download the release tarball:
 
 ```bash
-# Set the version you want (check https://github.com/logicminds/dbus-serialinverter/releases)
-TAG=v0.2.0
-
-# Download
-wget -qO /tmp/sinv.tar.gz "https://github.com/logicminds/dbus-serialinverter/releases/download/${TAG}/dbus-serialinverter-${TAG}.tar.gz"
+# Download the latest release
+wget -qO /tmp/dbus-serialinverter.tar.gz https://github.com/logicminds/dbus-serialinverter/releases/latest/download/dbus-serialinverter.tar.gz
 
 # Extract into /data (creates /data/conf and /data/etc)
-tar -xzf /tmp/sinv.tar.gz -C /data
+tar -xzf /tmp/dbus-serialinverter.tar.gz -C /data
 ```
 
 > **Warning:** If `/data/conf/serial-starter.d` already exists on your device, do NOT overwrite it. Back up first and merge the contents manually.
