@@ -1,4 +1,5 @@
 *.log
+.env
 docs/private
 todos
 __pycache__

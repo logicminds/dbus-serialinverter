@@ -106,6 +106,25 @@ def test_active_input_path_is_published():
     )
 
 
+def test_acin1_available_is_one_when_connected():
+    """/Ac/State/AcIn1Available must be 1 when AC is connected.
+
+    systemcalc reads this flag to determine if AC input 1 is physically present.
+    When it is missing or 0, systemcalc reports ini=0 (Number of AC Inputs=0) and
+    VRM hides the AC Input panel even when voltage/current/power values are correct.
+    """
+    helper = _make_vebus_helper(connected=1)
+    helper.publish_dbus()
+    assert helper._dbusservice["/Ac/State/AcIn1Available"] == 1
+
+
+def test_acin1_available_is_zero_when_disconnected():
+    """/Ac/State/AcIn1Available must be 0 when AC input is absent."""
+    helper = _make_vebus_helper(connected=0)
+    helper.publish_dbus()
+    assert helper._dbusservice["/Ac/State/AcIn1Available"] == 0
+
+
 if __name__ == "__main__":
     test_active_input_is_zero_when_ac_connected()
     test_active_input_is_240_when_ac_disconnected()

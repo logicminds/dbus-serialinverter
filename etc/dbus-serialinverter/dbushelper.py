@@ -142,7 +142,8 @@ class DbusHelper:
             self._dbusservice.add_path("/VebusChargeState", 0)
             self._dbusservice.add_path("/Ac/NumberOfAcInputs", 1)
             self._dbusservice.add_path("/Ac/NumberOfPhases", 1)
-            self._dbusservice.add_path("/Ac/In/1/Type", 3)  # 3=Shore power
+            self._dbusservice.add_path("/Ac/In/1/Type", 3)   # 3=Shore power
+            self._dbusservice.add_path("/Ac/State/AcIn1Available", 0)  # updated each poll
             # AC output
             self._dbusservice.add_path("/Ac/Out/L1/V", 0, gettextcallback=self._fmt("%.0FV"))
             self._dbusservice.add_path("/Ac/Out/L1/I", 0, gettextcallback=self._fmt("%.0FA"))
@@ -241,6 +242,7 @@ class DbusHelper:
                 self._dbusservice["/VebusChargeState"] = charge_state
             ac_in = self.inverter.energy_data.get("ac_in", {})
             connected = ac_in.get("connected")
+            self._dbusservice["/Ac/State/AcIn1Available"] = 1 if connected == 1 else 0
             self._dbusservice["/Ac/ActiveIn/ActiveInput"] = 0 if connected == 1 else 240
             self._dbusservice["/Ac/ActiveIn/L1/V"] = ac_in.get("voltage")
             self._dbusservice["/Ac/ActiveIn/L1/I"] = ac_in.get("current")
