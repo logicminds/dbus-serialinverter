@@ -26,6 +26,13 @@ from typing import Optional, Dict, Any
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "etc", "dbus-serialinverter"))
 sys.path.insert(0, os.path.dirname(__file__))
 
+# conftest.py stubs out pymodbus as a plain ModuleType (not a package) so that
+# most tests don't need the real library. But samlex_tcp_server needs the real
+# embedded pymodbus with its server subpackage, so clear any stubs first.
+for _pm in list(sys.modules.keys()):
+    if _pm == "pymodbus" or _pm.startswith("pymodbus."):
+        del sys.modules[_pm]
+
 # Import the TCP server
 from samlex_tcp_server import SamlexModbusServer
 
