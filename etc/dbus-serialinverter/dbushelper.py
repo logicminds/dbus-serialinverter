@@ -27,6 +27,17 @@ def get_bus():
         else dbus.SystemBus()
     )
 
+
+def _port_id(port: str) -> str:
+    """Return a D-Bus-safe identifier for a port string.
+
+    /dev/ttyUSB0        → ttyUSB0
+    tcp://localhost:5020 → localhost_5020
+    """
+    if port.startswith("tcp://"):
+        return port[len("tcp://"):].replace(":", "_")
+    return Path(port).name
+
 # (path_suffix, energy_data_key, format_string) for each per-phase measurement
 _PHASE_PATHS = [
     ('Voltage',        'ac_voltage',       '%.0FV'),
@@ -45,7 +56,7 @@ class DbusHelper:
         self.error_count = 0
         self._prefix = getattr(inverter, "SERVICE_PREFIX", self._DEFAULT_PREFIX)
         self._dbusservice = VeDbusService(
-            self._prefix + "." + Path(self.inverter.port).name,
+            self._prefix + "." + _port_id(self.inverter.port),
             get_bus(),
             register=False,
         )
@@ -61,7 +72,7 @@ class DbusHelper:
             return getattr(self.inverter, "SERVICE_PREFIX", self._DEFAULT_PREFIX)
 
     def setup_instance(self):
-        inverter_id = Path(self.inverter.port).name
+        inverter_id = _port_id(self.inverter.port)
         path = "/Settings/Devices/serialinverter"
         _prefix = self._get_prefix()
         if _prefix == "com.victronenergy.vebus":
@@ -98,7 +109,7 @@ class DbusHelper:
         # and notify of all the attributes we intend to update
         # This is only called once when a inverter is initiated
         self.setup_instance()
-        short_port = Path(self.inverter.port).name
+        short_port = _port_id(self.inverter.port)
         _prefix = self._get_prefix()
         logger.info("%s.%s", _prefix, short_port)
 
