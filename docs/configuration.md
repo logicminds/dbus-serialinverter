@@ -58,7 +58,7 @@ POSITION=1
 
 | Key | Values | Notes |
 |-----|--------|-------|
-| `PUBLISH_CONFIG_VALUES` | `1` or `0` | Publish config constants to D-Bus under `/Info/Config/*`. Default to `1`. |
+| `PUBLISH_CONFIG_VALUES` | `1` or `0` | Publish config constants to D-Bus under `/Info/Config/*`. Defaults to `1`. |
 | `LOG_LEVEL` | `DEBUG`, `INFO`, `WARNING`, `ERROR` | Invalid values fall back to `INFO`. Use `DEBUG` only when troubleshooting. |
 
 ### `[INVERTER]` Section
