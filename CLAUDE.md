@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A VenusOS driver that bridges serial-connected solar inverters (RS232/RS485/TTL UART) to the Victron D-Bus system. Runs on Victron GX devices or Raspberry Pi running VenusOS Large (Python 3.6+ required for dataclasses).
+A VenusOS driver that bridges serial-connected solar inverters (RS232/RS485/TTL UART) to the Victron D-Bus system. Runs on Victron GX devices or Raspberry Pi running VenusOS Large (Python 3.8+ required).
 
 ## Running the Driver
 
@@ -72,7 +72,7 @@ CI enforces the same checks on every push and PR. A commit that breaks lint or d
 
 ## Running Tests
 
-Tests live in `tests/` and have no external dependencies beyond the standard library. Each test file stubs out VenusOS/D-Bus packages so they run on any Python 3.6+ machine without hardware.
+Tests live in `tests/` and have no external dependencies beyond the standard library. Each test file stubs out VenusOS/D-Bus packages so they run on any Python 3.8+ machine without hardware.
 
 ```bash
 # Run all tests
@@ -120,7 +120,7 @@ The `todos/` directory tracks 14 open issues. P1 bugs (001–004) are fixed. Rem
 
 ## Dependencies
 
-- Python 3.6+ (VenusOS Large required)
+- Python 3.8+ (VenusOS Large required)
 - `pymodbus` — embedded in `etc/dbus-serialinverter/pymodbus/`
 - Victron `velib_python` (VeDbusService, SettingsDevice) — provided by VenusOS
 - GObject/GLib (`gi.repository.GLib`) — provided by VenusOS
