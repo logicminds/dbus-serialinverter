@@ -87,6 +87,18 @@ class DbusHelper:
                 0,
             ],
         }
+        if _prefix == "com.victronenergy.vebus":
+            # systemcalc reads /Settings/SystemSetup/AcInput1 to determine the
+            # AC source type.  Without this setting (or when it is 0 = "Not
+            # available"), systemcalc reports AIS=240 (Inverting) and ini=0 even
+            # when the device itself publishes valid AC input data.
+            # Values: 0=Not available, 1=Grid, 2=Generator, 3=Shore power
+            settings["acInput1"] = [
+                "/Settings/SystemSetup/AcInput1",
+                1,   # default: Grid
+                0,
+                3,
+            ]
         self.settings = SettingsDevice(get_bus(), settings, self.handle_changed_setting)
         self.inverter.role, self.instance = self.get_role_instance()
 
