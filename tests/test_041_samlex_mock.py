@@ -97,6 +97,7 @@ def test_energy_data_structure():
     # AC input has values
     assert "voltage" in m.energy_data["ac_in"]
     assert "current" in m.energy_data["ac_in"]
+    assert "power" in m.energy_data["ac_in"]
     assert "connected" in m.energy_data["ac_in"]
 
 def test_values_are_realistic():
@@ -117,8 +118,8 @@ def test_values_are_realistic():
     # AC power positive
     assert m.energy_data["L1"]["ac_power"] > 0
 
-    # Status is valid
-    assert m.status in [7, 8, 10]  # Running, Standby, Error
+    # Status is a valid vebus /State value (2=Fault, 4=Absorption, 5=Float, 9=Inverting, etc.)
+    assert m.status in [2, 4, 5, 6, 7, 8, 9]
 
 def test_apply_power_limit_returns_false():
     """apply_power_limit() returns False (not supported)."""

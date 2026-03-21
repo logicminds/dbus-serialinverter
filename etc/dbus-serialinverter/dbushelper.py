@@ -148,6 +148,7 @@ class DbusHelper:
             self._dbusservice.add_path("/Ac/Out/L1/I", 0, gettextcallback=self._fmt("%.0FA"))
             self._dbusservice.add_path("/Ac/Out/L1/P", 0, gettextcallback=self._fmt("%.0FW"))
             # AC input
+            self._dbusservice.add_path("/Ac/ActiveIn/ActiveInput", 240)  # 0=ACin-1, 240=inverting
             self._dbusservice.add_path("/Ac/ActiveIn/L1/V", 0, gettextcallback=self._fmt("%.0FV"))
             self._dbusservice.add_path("/Ac/ActiveIn/L1/I", 0, gettextcallback=self._fmt("%.0FA"))
             self._dbusservice.add_path("/Ac/ActiveIn/L1/P", 0, gettextcallback=self._fmt("%.0FW"))
@@ -239,10 +240,12 @@ class DbusHelper:
             if charge_state is not None:
                 self._dbusservice["/VebusChargeState"] = charge_state
             ac_in = self.inverter.energy_data.get("ac_in", {})
+            connected = ac_in.get("connected")
+            self._dbusservice["/Ac/ActiveIn/ActiveInput"] = 0 if connected == 1 else 240
             self._dbusservice["/Ac/ActiveIn/L1/V"] = ac_in.get("voltage")
             self._dbusservice["/Ac/ActiveIn/L1/I"] = ac_in.get("current")
             self._dbusservice["/Ac/ActiveIn/L1/P"] = ac_in.get("power")
-            self._dbusservice["/Ac/ActiveIn/Connected"] = ac_in.get("connected")
+            self._dbusservice["/Ac/ActiveIn/Connected"] = connected
         else:
             # pvinverter publish
             self._dbusservice["/StatusCode"] = self.inverter.status

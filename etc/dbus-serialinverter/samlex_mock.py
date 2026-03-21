@@ -172,18 +172,31 @@ class SamlexMock(Inverter):
         self.energy_data["overall"]["ac_power"] = self._ac_out_power
 
         # DC battery
-        self.energy_data["dc"]["voltage"] = round(self._dc_voltage, 2)
-        self.energy_data["dc"]["current"] = round(self._dc_current, 2)
+        dc_v = round(self._dc_voltage, 2)
+        dc_i = round(self._dc_current, 2)
+        self.energy_data["dc"]["voltage"] = dc_v
+        self.energy_data["dc"]["current"] = dc_i
+        self.energy_data["dc"]["power"] = round(dc_v * dc_i, 0)
         self.energy_data["dc"]["soc"] = round(self._soc, 1)
         self.energy_data["dc"]["charge_state"] = self._charge_state
 
         # AC input
-        self.energy_data["ac_in"]["voltage"] = round(self._ac_in_voltage, 1)
-        self.energy_data["ac_in"]["current"] = round(self._ac_in_current, 2)
+        ac_in_v = round(self._ac_in_voltage, 1)
+        ac_in_i = round(self._ac_in_current, 2)
+        self.energy_data["ac_in"]["voltage"] = ac_in_v
+        self.energy_data["ac_in"]["current"] = ac_in_i
+        self.energy_data["ac_in"]["power"] = round(ac_in_v * ac_in_i, 0)
         self.energy_data["ac_in"]["connected"] = self._ac_in_connected
 
-        # Status
-        self.status = self._status
+        # Status — derive vebus /State from fault, AC connection, and charge stage
+        # (mirrors the logic in samlex.py read_status_data)
+        from samlex import _VEBUS_STATE_FROM_CHARGE
+        if self._fault != 0:
+            self.status = 2   # Fault
+        elif self._ac_in_connected != 1:
+            self.status = 9   # Inverting
+        else:
+            self.status = _VEBUS_STATE_FROM_CHARGE.get(self._charge_state, 9)
 
         logger.debug("SamlexMock: status=%s, AC=%sW, DC=%sV/%sA, SOC=%s%%",
                      self.status, self._ac_out_power,

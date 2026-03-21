@@ -301,8 +301,8 @@ class SamlexTCPIntegrationTest:
 
         logger.info(f"Status: {status}, Charge State: {charge_state}")
 
-        # With no fault and power > 0, status should be 7 (Running)
-        assert status == 7, f"Expected status 7, got {status}"
+        # Normal scenario: AC connected, charge_state=2 (Absorption) → vebus State 4
+        assert status == 4, f"Expected status 4 (Absorption), got {status}"
 
     def test_multiple_polls(self):
         """Test multiple poll cycles."""
