@@ -25,7 +25,7 @@ cd /data/etc/dbus-serialinverter
 chmod +x install.sh && ./install.sh
 ```
 
-Reboot and check logs: `tail -f /var/log/dbus-serialinverter.<TTY>`
+Reboot and check logs: `tail -f /var/log/dbus-serialinverter.<TTY>/current`
 
 See the [Installation Guide](docs/installation.md) for udev setup and detailed steps.
 
