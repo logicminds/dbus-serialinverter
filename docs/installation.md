@@ -15,8 +15,8 @@ SSH into your VenusOS device and download the release tarball:
 # Download the latest release
 wget -qO /tmp/dbus-serialinverter.tar.gz https://github.com/logicminds/dbus-serialinverter/releases/latest/download/dbus-serialinverter.tar.gz
 
-# Extract into /data (creates /data/conf and /data/etc)
-tar -xzf /tmp/dbus-serialinverter.tar.gz -C /data
+# Extract into /data (creates /data/dbus-serialinverter); preserves existing config
+tar -xzf /tmp/dbus-serialinverter.tar.gz -C /data --skip-old-files
 ```
 
 > **Warning:** If `/data/conf/serial-starter.d` already exists on your device, do NOT overwrite it. Back up first and merge the contents manually.
@@ -29,42 +29,43 @@ vi /data/etc/dbus-serialinverter/config.ini
 
 ### 2. Lock your USB serial converter
 
-To prevent other VenusOS services from claiming your serial port, create a udev rule. SSH into your VenusOS device and run:
+To prevent other VenusOS services from claiming your serial port, create a udev rule.
+
+If you have multiple USB serial devices (e.g. Victron VE.Bus adapters alongside your inverter's RS485 converter), the included script lists all connected devices so you can pick the right one.
 
 ```bash
-#!/bin/bash
-
-# Identify the target device (change if not ttyUSB0)
-DEV_NAME="/dev/ttyUSB0"
-
-if [ ! -e "$DEV_NAME" ]; then
-    echo "Error: $DEV_NAME not found. Please plug in your USB-to-Serial converter."
-    exit 1
-fi
-
-# Extract hardware IDs
-ID_MODEL=$(udevadm info --query=property --name="$DEV_NAME" | grep 'ID_MODEL=' | cut -d'=' -f2)
-ID_SERIAL=$(udevadm info --query=property --name="$DEV_NAME" | grep 'ID_SERIAL_SHORT=' | cut -d'=' -f2)
-
-if [ -z "$ID_MODEL" ] || [ -z "$ID_SERIAL" ]; then
-    echo "Error: Could not retrieve hardware ID for $DEV_NAME."
-    exit 1
-fi
-
-# Write the udev rule
-RULE_LINE="ACTION==\"add\", ENV{ID_BUS}==\"usb\", ENV{ID_MODEL}==\"$ID_MODEL\", ENV{ID_SERIAL_SHORT}==\"$ID_SERIAL\", ENV{VE_SERVICE}=\"sinv\""
-RULE_FILE="/etc/udev/rules.d/serial-starter.rules"
-
-echo "Found Device: $ID_MODEL ($ID_SERIAL)"
-echo "Writing rule to $RULE_FILE..."
-
-echo "$RULE_LINE" | sudo tee "$RULE_FILE" > /dev/null
-
-sudo udevadm control --reload-rules
-sudo udevadm trigger
-
-echo "Done. Your serial converter is now locked to this hardware ID."
+cd /data/dbus-serialinverter/etc/dbus-serialinverter
+chmod +x lock-serial-device.sh
+./lock-serial-device.sh
 ```
+
+Example output with three USB devices (two Victron VE.Direct cables and one RS485 converter):
+
+```
+Available USB serial devices:
+
+  [0] /dev/ttyUSB0  —  VictronEnergy_BV / VE_Direct_cable (serial: VE61VZ7Z)
+  [1] /dev/ttyUSB1  —  VictronEnergy_BV / VE_Direct_cable (serial: VE61VUG5)
+  [2] /dev/ttyUSB2  —  FTDI / USB-RS485-WE (serial: FTALP3Z5)
+
+Select device number [0]: 2
+
+Selected: /dev/ttyUSB2
+  Vendor: USB-RS485-WE
+  Serial: FTALP3Z5
+Writing rule to /etc/udev/rules.d/serial-starter.rules...
+Done. Your serial converter is now locked to this hardware ID.
+```
+
+In this case, device `[2]` is the FTDI RS485 adapter connected to the inverter — the other two are Victron VE.Direct cables and should be left alone.
+
+To switch to a different converter cable (or remove the lock entirely), run:
+
+```bash
+./lock-serial-device.sh --unlock
+```
+
+This removes the udev rule and reloads the rules. You can then re-run `./lock-serial-device.sh` to lock a different device. Re-running the lock script when a rule already exists will prompt you to replace it.
 
 ### 3. Install and reboot
 

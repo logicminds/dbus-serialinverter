@@ -16,8 +16,8 @@ SSH into your VenusOS device and run:
 # Download the latest release
 wget -O /tmp/dbus-serialinverter.tar.gz https://github.com/logicminds/dbus-serialinverter/releases/latest/download/dbus-serialinverter.tar.gz
 
-# Extract into /data (creates /data/conf and /data/etc)
-tar -xzf /tmp/dbus-serialinverter.tar.gz -C /data
+# Extract into /data (creates /data/dbus-serialinverter); preserves existing config
+tar -xzf /tmp/dbus-serialinverter.tar.gz -C /data --skip-old-files
 
 # Configure and install
 vi /data/etc/dbus-serialinverter/config.ini   # set TYPE, MAX_AC_POWER, PHASE
