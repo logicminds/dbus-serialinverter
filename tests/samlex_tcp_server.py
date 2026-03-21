@@ -51,18 +51,18 @@ logger = logging.getLogger("samlex_tcp_server")
 # Dimensionless/raw registers (FAULT, SOC, CHARGE_STATE, AC_IN_CONNECTED, IDENTITY)
 # are stored as the exact raw uint16 written to the Modbus datastore.
 _NORMAL_VALUES: Dict[str, Any] = {
-    "REG_IDENTITY":        None,   # filled at runtime from identity_value arg
-    "REG_AC_IN_CONNECTED": 1,      # raw: 1 = AC input normal
-    "REG_FAULT":           0,      # raw: 0 = no fault
-    "REG_DC_VOLTAGE":      26.4,   # V
-    "REG_DC_CURRENT":      5.2,    # A (positive = charging)
-    "REG_AC_OUT_VOLTAGE":  120.0,  # V
-    "REG_AC_OUT_CURRENT":  8.33,   # A
-    "REG_AC_OUT_POWER":    1000.0, # W
-    "REG_SOC":             85,     # % (no scale)
-    "REG_CHARGE_STATE":    2,      # raw: 2 = Absorption
-    "REG_AC_IN_VOLTAGE":   120.0,  # V
-    "REG_AC_IN_CURRENT":   4.17,   # A
+    "REG_IDENTITY": None,  # filled at runtime from identity_value arg
+    "REG_AC_IN_CONNECTED": 1,  # raw: 1 = AC input normal
+    "REG_FAULT": 0,  # raw: 0 = no fault
+    "REG_DC_VOLTAGE": 26.4,  # V
+    "REG_DC_CURRENT": 5.2,  # A (positive = charging)
+    "REG_AC_OUT_VOLTAGE": 120.0,  # V
+    "REG_AC_OUT_CURRENT": 8.33,  # A
+    "REG_AC_OUT_POWER": 1000.0,  # W
+    "REG_SOC": 85,  # % (no scale)
+    "REG_CHARGE_STATE": 2,  # raw: 2 = Absorption
+    "REG_AC_IN_VOLTAGE": 120.0,  # V
+    "REG_AC_IN_CURRENT": 30.17,  # A
 }
 
 # Maps each scaled REG_* key to its corresponding SCALE_* key in [SAMLEX_REGISTERS]
@@ -110,7 +110,7 @@ class SamlexModbusServer:
             host: Host address to bind to
             port: TCP port to listen on
             slave_address: Modbus slave address (unit ID)
-            scenario: Test scenario (normal, fault, low_battery, ac_disconnect, heavy_load)
+            scenario: Test scenario (normal, fault, low_battery, ac_disconnect, heavy_load, heavy_load_with_input)
             identity_value: The identity register value (model-specific)
         """
         self.host = host
@@ -169,6 +169,19 @@ class SamlexModbusServer:
         if self.scenario == "fault":
             values["REG_FAULT"] = 1
             logger.info("Scenario: FAULT CONDITION")
+
+        if self.scenario == "heavy_load_with_input":
+            # Shore power supplies 3800 W load + ~160 W battery charge = ~3960 W input
+            values["REG_AC_OUT_VOLTAGE"] = 120.0      # V
+            values["REG_AC_OUT_CURRENT"] = 31.7       # A  (3800 W / 120 V)
+            values["REG_AC_OUT_POWER"] = 3800.0       # W
+            values["REG_AC_IN_CONNECTED"] = 1         # raw: 1 = AC input normal
+            values["REG_AC_IN_VOLTAGE"] = 120.0       # V
+            values["REG_AC_IN_CURRENT"] = 33.0        # A  (3960 W / 120 V; shore > output)
+            values["REG_DC_CURRENT"] = 6.0            # A  positive = battery charging
+            values["REG_CHARGE_STATE"] = 2            # raw: 2 = Absorption
+
+            logger.info("Scenario: HEAVY LOAD with Input (3800W out, 3960W in, battery charging)")
 
         elif self.scenario == "low_battery":
             values["REG_SOC"] = 15
@@ -337,9 +350,16 @@ Examples:
     )
     parser.add_argument(
         "--scenario",
-        choices=["normal", "fault", "low_battery", "ac_disconnect", "heavy_load"],
+        choices=[
+            "normal",
+            "fault",
+            "low_battery",
+            "ac_disconnect",
+            "heavy_load",
+            "heavy_load_with_input",
+        ],
         default="normal",
-        help="Test scenario (default: normal)"
+        help="Test scenario (default: normal)",
     )
     parser.add_argument(
         "-v", "--verbose",
