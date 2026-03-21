@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 Starting with tagged releases (`v*`), release notes are generated automatically from commits since the previous tag and published in GitHub Releases.
 
-## Unreleased
+## v0.3.0 (Mar 21, 2026)
 
 ### Feature: VE.Bus (vebus) inverter/charger support
 
