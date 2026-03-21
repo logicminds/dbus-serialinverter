@@ -1,0 +1,65 @@
+# Example config for SamlexTCP testing
+# Copy this to config.ini when testing with TCP server
+#
+# Usage:
+#   1. Terminal 1: python tests/samlex_tcp_server.py --port 5020
+#   2. Terminal 2: cp etc/dbus-serialinverter/config.ini.samlexTCP etc/dbus-serialinverter/config.ini
+#   3. Terminal 2: python dbus-serialinverter.py tcp://localhost:5020
+#
+# NOTE: These are PLACEHOLDER register addresses for TCP testing only.
+# They do NOT match real Samlex EVO register addresses (which are NDA-protected).
+# This config is for testing the Modbus TCP protocol layer without hardware.
+
+[DEFAULT]
+PUBLISH_CONFIG_VALUES=1
+LOG_LEVEL=DEBUG
+
+[INVERTER]
+TYPE=SamlexTCP
+ADDRESS=1
+POLL_INTERVAL=1000
+MAX_AC_POWER=4000
+PHASE=L1
+POSITION=1
+
+[SAMLEX_REGISTERS]
+# ============================================================
+# PLACEHOLDER ADDRESSES FOR TCP TESTING
+# ============================================================
+# These addresses match the samlex_tcp_server.py test server.
+# They are intentionally different from real Samlex addresses.
+# Do NOT use these with real hardware - they won't work!
+# ============================================================
+
+# Identity register
+REG_IDENTITY=4021
+IDENTITY_VALUE=16420
+
+# AC Output registers
+REG_AC_OUT_VOLTAGE=4023
+REG_AC_OUT_CURRENT=4037
+REG_AC_OUT_POWER=4056
+SCALE_AC_OUT_VOLTAGE=0.1
+SCALE_AC_OUT_CURRENT=0.01
+SCALE_AC_OUT_POWER=1.0
+
+# DC / Battery registers
+REG_DC_VOLTAGE=4115
+REG_DC_CURRENT=4129
+REG_SOC=4048
+SCALE_DC_VOLTAGE=0.1
+SCALE_DC_CURRENT=0.01
+
+# AC Input registers
+REG_AC_IN_VOLTAGE=4107
+REG_AC_IN_CURRENT=4138
+REG_AC_IN_CONNECTED=4119
+SCALE_AC_IN_VOLTAGE=0.1
+SCALE_AC_IN_CURRENT=0.01
+
+# Status registers
+REG_FAULT=4092
+REG_CHARGE_STATE=4061
+
+# Working status (inverter state)
+REG_WORKING_STATUS=4084

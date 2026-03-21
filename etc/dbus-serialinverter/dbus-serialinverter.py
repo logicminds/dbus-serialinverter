@@ -18,15 +18,18 @@ from inverter import Inverter
 from dummy import Dummy
 from solis import Solis
 from samlex import Samlex
+from samlex_mock import SamlexMock
 
 _REAL_INVERTER_TYPES = [
     {"inverter": Solis,   "baudrate": 9600, "slave": 1},
     {"inverter": Samlex,  "baudrate": 9600, "slave": 1},  # after Solis; silently skipped if registers not configured
 ]
 
-# Dummy is only included when explicitly configured — never in auto-detect.
+# Dummy and SamlexMock are only included when explicitly configured — never in auto-detect.
 if utils.INVERTER_TYPE == "Dummy":
     expected_inverter_types = [{"inverter": Dummy, "baudrate": 0, "slave": 0}]
+elif utils.INVERTER_TYPE == "SamlexMock":
+    expected_inverter_types = [{"inverter": SamlexMock, "baudrate": 0, "slave": 0}]
 elif utils.INVERTER_TYPE == "":
     expected_inverter_types = _REAL_INVERTER_TYPES
 else:

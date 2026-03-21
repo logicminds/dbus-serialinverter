@@ -4,6 +4,10 @@ VenusOS D-Bus driver for Samlex EVO series multi-mode inverter/chargers over Mod
 
 Tested against the EVO-4024 (24 V, 4000 W). Other EVO models share the same Modbus register map and work with only a few config changes. See [Supported Models](#supported-models).
 
+> **Testing without hardware?** See [`SAMLEX_TESTING.md`](SAMLEX_TESTING.md) for `SamlexMock` (zero-setup D-Bus testing) and `SamlexTCP` (Modbus protocol testing) options.
+
+---
+
 ---
 
 ## Supported Models
