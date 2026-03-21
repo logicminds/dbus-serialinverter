@@ -4,6 +4,32 @@ from modbus_inverter import ModbusInverter
 from utils import logger
 import utils
 
+# Samlex Charger State (raw) → Victron /State (vebus operating state)
+# Derived when AC is connected.  Fault and AC-disconnected are handled first.
+# Victron: 4=Absorption, 5=Float, 6=Storage, 7=Equalize, 8=Passthru, 9=Inverting
+_VEBUS_STATE_FROM_CHARGE = {
+    0: 8,  # Standby (no charging) → Passthru
+    1: 7,  # Equalization          → Equalize
+    2: 4,  # Absorption            → Absorption
+    3: 5,  # Float                 → Float
+    4: 6,  # Storage               → Storage
+    9: 9,  # Inverting             → Inverting
+}
+
+# Samlex EVO Charger State register → Victron /VebusChargeState
+# Samlex (reg 8): 0=Standby, 1=Equalization, 2=Absorption, 3=Float, 4=Storage, 9=Inverting
+# Victron:        0=Idle,    1=Bulk,          2=Absorption, 3=Float, 4=Storage, 5=Equalise, 9=Inverting
+# Note: Samlex has no distinct Bulk stage; passing raw values would mismap
+# Equalization (Samlex 1) as Bulk (Victron 1).
+_CHARGE_STATE_MAP = {
+    0: 0,  # Standby      → Idle
+    1: 5,  # Equalization → Equalise
+    2: 2,  # Absorption   → Absorption
+    3: 3,  # Float        → Float
+    4: 4,  # Storage      → Storage
+    9: 9,  # Inverting    → Inverting
+}
+
 # All keys that must be present and numeric in [SAMLEX_REGISTERS] before the
 # driver attempts any Modbus communication.  test_connection() validates these.
 REQUIRED_SAMLEX_REGISTERS = (
@@ -183,19 +209,25 @@ class Samlex(ModbusInverter):
             error = True
 
         # Fault / status (batch)
-        # Conservative mapping: non-zero fault → 10 (Error), no fault + AC output > 0 → 7 (Running), else → 8 (Standby)
         status_regs = self._read_group(["REG_FAULT", "REG_CHARGE_STATE"])
         if status_regs:
             fault = status_regs["REG_FAULT"]
+            raw_cs = status_regs["REG_CHARGE_STATE"]
+            self.energy_data["dc"]["charge_state"] = _CHARGE_STATE_MAP.get(raw_cs, 0)
+            if raw_cs not in _CHARGE_STATE_MAP:
+                logger.warning("Unknown Samlex charge state %s; defaulting to Idle", raw_cs)
+
+            # Derive vebus /State from fault, AC connection, and charge stage.
+            # Priority: fault > AC disconnected > charge-stage-based state.
+            ac_connected = self.energy_data["ac_in"]["connected"]
             if fault != 0:
-                self.status = 10  # Error
-            elif (self.energy_data["L1"]["ac_power"] or 0) > 0:
-                self.status = 7  # Running
+                self.status = 2   # Fault
+            elif ac_connected != 1:
+                self.status = 9   # Inverting (no AC input)
             else:
-                self.status = 8  # Standby
-            self.energy_data["dc"]["charge_state"] = status_regs["REG_CHARGE_STATE"]
+                self.status = _VEBUS_STATE_FROM_CHARGE.get(raw_cs, 9)
         else:
-            self.status = 10  # Error on read failure
+            self.status = 2   # Fault (comms failure — safest default)
             error = True
 
         logger.debug("Samlex status: %s", self.status)

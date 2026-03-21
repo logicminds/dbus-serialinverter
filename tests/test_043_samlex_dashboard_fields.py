@@ -280,9 +280,10 @@ def test_normal_ac_in_power_equals_voltage_times_current():
     assert ac_in["power"] == expected, f"ac_in power {ac_in['power']} != V×I {expected}"
 
 
-def test_normal_status_running():
+def test_normal_status_absorption():
+    """Normal: AC connected + charge_state=Absorption → vebus State 4 (Absorption)."""
     s = _run("normal")
-    assert s.status == 7  # Running
+    assert s.status == 4  # Absorption
 
 
 # ── Fault scenario ────────────────────────────────────────────────────────────
@@ -295,9 +296,9 @@ def test_fault_all_fields_populated():
     _assert_status_set(s, "fault")
 
 
-def test_fault_status_is_error():
+def test_fault_status_is_fault():
     s = _run("fault")
-    assert s.status == 10  # Error
+    assert s.status == 2  # Fault (vebus State 2)
 
 
 def test_fault_ac_in_still_shows():
@@ -353,7 +354,7 @@ def test_ac_disconnect_ac_in_voltage_and_current_are_zero():
 
 def test_ac_disconnect_charge_state_is_inverting():
     s = _run("ac_disconnect")
-    assert s.energy_data["dc"]["charge_state"] == 9  # Inverting
+    assert s.energy_data["dc"]["charge_state"] == 9  # Inverting (Samlex 9 → Victron 9)
 
 
 # ── Heavy load scenario ───────────────────────────────────────────────────────
