@@ -27,7 +27,11 @@ jobs:
           # Write the tag version into VERSION so the tarball is self-describing
           echo "${GITHUB_REF_NAME#v}" > VERSION
 
-          tar -czf dist/dbus-serialinverter.tar.gz VERSION conf etc tests/samlex_tcp_server.py
+          tar -czf dist/dbus-serialinverter.tar.gz \
+            --transform 's,^,dbus-serialinverter/,' \
+            VERSION README.md \
+            docs/installation.md docs/configuration.md docs/samlex.md \
+            conf etc tests/samlex_tcp_server.py
           sha256sum dist/dbus-serialinverter.tar.gz > dist/dbus-serialinverter.tar.gz.sha256
 
       - name: Generate changelog and release notes

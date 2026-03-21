@@ -72,6 +72,37 @@ python dbus-serialinverter.py /dev/null
 python dbus-serialinverter.py /dev/ttyUSB0
 ```
 
+## Testing with Modbus TCP (no hardware)
+
+The `start-tcpinverter.sh` script starts the mock Modbus TCP server and connects the driver to it in one step:
+
+```bash
+cd etc/dbus-serialinverter
+
+# Normal scenario on localhost:5020
+./start-tcpinverter.sh
+
+# Fault scenario
+./start-tcpinverter.sh --scenario fault
+
+# Custom port
+./start-tcpinverter.sh --port 5021
+```
+
+Available scenarios: `normal`, `fault`, `low_battery`, `ac_disconnect`, `heavy_load`, `heavy_load_with_input`, `heavy_load_battery`.
+
+The script starts `samlex_tcp_server.py` in the background and cleans it up on Ctrl-C. It finds the server in the current directory (release tarball) or `tests/` (source repo).
+
+To run the server and driver separately (e.g. to watch server logs in a second terminal):
+
+```bash
+# Terminal 1: start the mock server
+python tests/samlex_tcp_server.py --scenario normal
+
+# Terminal 2: connect the driver
+python etc/dbus-serialinverter/dbus-serialinverter.py tcp://localhost:5020
+```
+
 ## Configuration
 
 Edit `etc/dbus-serialinverter/config.ini`:

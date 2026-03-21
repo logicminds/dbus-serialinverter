@@ -52,3 +52,6 @@ if [ ! -f $filename ]; then
     chmod 755 $filename
 fi
 grep -qxF "sh /data/etc/$DRIVERNAME/install.sh" $filename || printf '\n%s' "sh /data/etc/$DRIVERNAME/install.sh" >> $filename
+# reset back to RO to prevent accidental changes to the system
+sed -i 's|\(/dev/root\s\+\/\s\+auto\s\+\)defaults|\1ro|' /etc/fstab
+mount -o remount,ro /

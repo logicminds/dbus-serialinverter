@@ -41,7 +41,8 @@ def _resolve_inverter_types(port: str):
         return [{"inverter": Dummy, "baudrate": 0, "slave": 0}]
     if inverter_type == "SamlexMock":
         return [{"inverter": SamlexMock, "baudrate": 0, "slave": 0}]
-    if inverter_type == "SamlexTCP" or (inverter_type == "" and is_tcp):
+    # TCP port always uses TCP driver — serial drivers can't work over TCP
+    if inverter_type == "SamlexTCP" or is_tcp:
         return _TCP_INVERTER_TYPES
     if inverter_type == "":
         return _REAL_INVERTER_TYPES
