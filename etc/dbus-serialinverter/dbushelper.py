@@ -27,6 +27,17 @@ def get_bus():
         else dbus.SystemBus()
     )
 
+
+def _port_id(port: str) -> str:
+    """Return a D-Bus-safe identifier for a port string.
+
+    /dev/ttyUSB0        → ttyUSB0
+    tcp://localhost:5020 → localhost_5020
+    """
+    if port.startswith("tcp://"):
+        return port[len("tcp://"):].replace(":", "_")
+    return Path(port).name
+
 # (path_suffix, energy_data_key, format_string) for each per-phase measurement
 _PHASE_PATHS = [
     ('Voltage',        'ac_voltage',       '%.0FV'),
@@ -45,7 +56,7 @@ class DbusHelper:
         self.error_count = 0
         self._prefix = getattr(inverter, "SERVICE_PREFIX", self._DEFAULT_PREFIX)
         self._dbusservice = VeDbusService(
-            self._prefix + "." + Path(self.inverter.port).name,
+            self._prefix + "." + _port_id(self.inverter.port),
             get_bus(),
             register=False,
         )
@@ -61,7 +72,7 @@ class DbusHelper:
             return getattr(self.inverter, "SERVICE_PREFIX", self._DEFAULT_PREFIX)
 
     def setup_instance(self):
-        inverter_id = Path(self.inverter.port).name
+        inverter_id = _port_id(self.inverter.port)
         path = "/Settings/Devices/serialinverter"
         _prefix = self._get_prefix()
         if _prefix == "com.victronenergy.vebus":
@@ -76,6 +87,18 @@ class DbusHelper:
                 0,
             ],
         }
+        if _prefix == "com.victronenergy.vebus":
+            # systemcalc reads /Settings/SystemSetup/AcInput1 to determine the
+            # AC source type.  Without this setting (or when it is 0 = "Not
+            # available"), systemcalc reports AIS=240 (Inverting) and ini=0 even
+            # when the device itself publishes valid AC input data.
+            # Values: 0=Not available, 1=Grid, 2=Generator, 3=Shore power
+            settings["acInput1"] = [
+                "/Settings/SystemSetup/AcInput1",
+                1,   # default: Grid
+                0,
+                3,
+            ]
         self.settings = SettingsDevice(get_bus(), settings, self.handle_changed_setting)
         self.inverter.role, self.instance = self.get_role_instance()
 
@@ -98,7 +121,7 @@ class DbusHelper:
         # and notify of all the attributes we intend to update
         # This is only called once when a inverter is initiated
         self.setup_instance()
-        short_port = Path(self.inverter.port).name
+        short_port = _port_id(self.inverter.port)
         _prefix = self._get_prefix()
         logger.info("%s.%s", _prefix, short_port)
 
@@ -131,12 +154,14 @@ class DbusHelper:
             self._dbusservice.add_path("/VebusChargeState", 0)
             self._dbusservice.add_path("/Ac/NumberOfAcInputs", 1)
             self._dbusservice.add_path("/Ac/NumberOfPhases", 1)
-            self._dbusservice.add_path("/Ac/In/1/Type", 3)  # 3=Shore power
+            self._dbusservice.add_path("/Ac/In/1/Type", 3)   # 3=Shore power
+            self._dbusservice.add_path("/Ac/State/AcIn1Available", 0)  # updated each poll
             # AC output
             self._dbusservice.add_path("/Ac/Out/L1/V", 0, gettextcallback=self._fmt("%.0FV"))
             self._dbusservice.add_path("/Ac/Out/L1/I", 0, gettextcallback=self._fmt("%.0FA"))
             self._dbusservice.add_path("/Ac/Out/L1/P", 0, gettextcallback=self._fmt("%.0FW"))
             # AC input
+            self._dbusservice.add_path("/Ac/ActiveIn/ActiveInput", 240)  # 0=ACin-1, 240=inverting
             self._dbusservice.add_path("/Ac/ActiveIn/L1/V", 0, gettextcallback=self._fmt("%.0FV"))
             self._dbusservice.add_path("/Ac/ActiveIn/L1/I", 0, gettextcallback=self._fmt("%.0FA"))
             self._dbusservice.add_path("/Ac/ActiveIn/L1/P", 0, gettextcallback=self._fmt("%.0FW"))
@@ -220,18 +245,21 @@ class DbusHelper:
             self._dbusservice["/Ac/Out/L1/I"] = self.inverter.energy_data["L1"]["ac_current"]
             self._dbusservice["/Ac/Out/L1/P"] = self.inverter.energy_data["L1"]["ac_power"]
             dc = self.inverter.energy_data.get("dc", {})
-            self._dbusservice["/Dc/0/Voltage"] = dc.get("voltage")
-            self._dbusservice["/Dc/0/Current"] = dc.get("current")
-            self._dbusservice["/Dc/0/Power"] = dc.get("power")
-            self._dbusservice["/Soc"] = dc.get("soc")
+            self._dbusservice["/Dc/0/Voltage"] = dc.get("voltage") or 0
+            self._dbusservice["/Dc/0/Current"] = dc.get("current") or 0
+            self._dbusservice["/Dc/0/Power"] = dc.get("power") or 0
+            self._dbusservice["/Soc"] = dc.get("soc") or 0
             charge_state = dc.get("charge_state")
             if charge_state is not None:
                 self._dbusservice["/VebusChargeState"] = charge_state
             ac_in = self.inverter.energy_data.get("ac_in", {})
-            self._dbusservice["/Ac/ActiveIn/L1/V"] = ac_in.get("voltage")
-            self._dbusservice["/Ac/ActiveIn/L1/I"] = ac_in.get("current")
-            self._dbusservice["/Ac/ActiveIn/L1/P"] = ac_in.get("power")
-            self._dbusservice["/Ac/ActiveIn/Connected"] = ac_in.get("connected")
+            connected = ac_in.get("connected") or 0
+            self._dbusservice["/Ac/State/AcIn1Available"] = 1 if connected == 1 else 0
+            self._dbusservice["/Ac/ActiveIn/ActiveInput"] = 0 if connected == 1 else 240
+            self._dbusservice["/Ac/ActiveIn/L1/V"] = ac_in.get("voltage") or 0
+            self._dbusservice["/Ac/ActiveIn/L1/I"] = ac_in.get("current") or 0
+            self._dbusservice["/Ac/ActiveIn/L1/P"] = ac_in.get("power") or 0
+            self._dbusservice["/Ac/ActiveIn/Connected"] = connected
         else:
             # pvinverter publish
             self._dbusservice["/StatusCode"] = self.inverter.status

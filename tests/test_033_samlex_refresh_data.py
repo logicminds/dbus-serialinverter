@@ -160,40 +160,76 @@ def test_ac_in_voltage_scaled():
     assert s.energy_data["ac_in"]["voltage"] == 120.0
 
 
+def test_ac_in_power_derived_from_voltage_and_current():
+    """ac_in power must be computed as voltage × current (not left None)."""
+    # 1200 raw × 0.1 = 120.0 V; 3300 raw × 0.01 = 33.0 A → 3960 W
+    s = _make_samlex(_make_client(address_regs={
+        _REG_MAP["REG_AC_IN_VOLTAGE"]:  [1200],
+        _REG_MAP["REG_AC_IN_CURRENT"]:  [3300],
+    }))
+    s.read_status_data()
+    assert s.energy_data["ac_in"]["power"] == 3960.0, (
+        f"Expected 3960.0 W, got {s.energy_data['ac_in']['power']}"
+    )
+
+
+def test_ac_in_power_is_zero_when_disconnected():
+    """When AC input is disconnected (0 V, 0 A), power should be 0, not None."""
+    s = _make_samlex(_make_client(address_regs={
+        _REG_MAP["REG_AC_IN_VOLTAGE"]: [0],
+        _REG_MAP["REG_AC_IN_CURRENT"]: [0],
+    }))
+    s.read_status_data()
+    assert s.energy_data["ac_in"]["power"] == 0.0
+
+
 # ── Status / fault mapping ────────────────────────────────────────────────────
 
-def test_status_running_when_fault_zero_and_power_positive():
-    """fault=0, ac_power>0 → status 7 (Running)."""
+def test_status_inverting_when_ac_disconnected():
+    """AC not connected → status 9 (Inverting), regardless of power output."""
     s = _make_samlex(_make_client(address_regs={
-        _REG_MAP["REG_FAULT"]:       [0],
-        _REG_MAP["REG_AC_OUT_POWER"]: [1000],
+        _REG_MAP["REG_FAULT"]:           [0],
+        _REG_MAP["REG_AC_IN_CONNECTED"]: [3],   # 3 = Inverting (not normal)
+        _REG_MAP["REG_AC_OUT_POWER"]:    [1000],
     }))
     s.read_status_data()
-    assert s.status == 7
+    assert s.status == 9  # Inverting
 
 
-def test_status_standby_when_fault_zero_and_power_zero():
-    """fault=0, ac_power=0 → status 8 (Standby)."""
+def test_status_absorption_when_ac_connected_and_absorbing():
+    """AC connected + charge_state Absorption → status 4 (Absorption)."""
     s = _make_samlex(_make_client(address_regs={
-        _REG_MAP["REG_FAULT"]:       [0],
-        _REG_MAP["REG_AC_OUT_POWER"]: [0],
+        _REG_MAP["REG_FAULT"]:           [0],
+        _REG_MAP["REG_AC_IN_CONNECTED"]: [1],   # AC normal
+        _REG_MAP["REG_CHARGE_STATE"]:    [2],   # Absorption
     }))
     s.read_status_data()
-    assert s.status == 8
+    assert s.status == 4  # Absorption
 
 
-def test_status_error_when_fault_nonzero():
-    """Any non-zero fault register → status 10 (Error)."""
+def test_status_passthru_when_ac_connected_charger_standby():
+    """AC connected + charge_state Standby → status 8 (Passthru)."""
+    s = _make_samlex(_make_client(address_regs={
+        _REG_MAP["REG_FAULT"]:           [0],
+        _REG_MAP["REG_AC_IN_CONNECTED"]: [1],
+        _REG_MAP["REG_CHARGE_STATE"]:    [0],   # Standby
+    }))
+    s.read_status_data()
+    assert s.status == 8  # Passthru
+
+
+def test_status_fault_when_fault_nonzero():
+    """Any non-zero fault register → status 2 (Fault)."""
     s = _make_samlex(_make_client(address_regs={_REG_MAP["REG_FAULT"]: [1]}))
     s.read_status_data()
-    assert s.status == 10
+    assert s.status == 2  # Fault
 
 
-def test_status_error_on_fault_register_read_failure():
-    """Failed fault register read → status 10."""
+def test_status_fault_on_comms_failure():
+    """Failed fault register read → status 2 (Fault — safest default)."""
     s = _make_samlex(_make_client(fail_addresses={_REG_MAP["REG_FAULT"]}))
     s.read_status_data()
-    assert s.status == 10
+    assert s.status == 2  # Fault
 
 
 # ── Failure return value ──────────────────────────────────────────────────────
@@ -209,12 +245,44 @@ def test_returns_false_when_any_read_fails():
     assert s.read_status_data() is False
 
 
-# ── Charge state ──────────────────────────────────────────────────────────────
+# ── Charge state translation (Samlex raw → Victron VebusChargeState) ──────────
 
-def test_charge_state_stored():
+def test_charge_state_absorption_passes_through():
+    """Samlex 2 (Absorption) → Victron 2 (Absorption)."""
+    s = _make_samlex(_make_client(address_regs={_REG_MAP["REG_CHARGE_STATE"]: [2]}))
+    s.read_status_data()
+    assert s.energy_data["dc"]["charge_state"] == 2
+
+
+def test_charge_state_equalization_maps_to_victron_equalise():
+    """Samlex 1 (Equalization) must NOT pass through as Victron 1 (Bulk).
+    It must be translated to Victron 5 (Equalise)."""
+    s = _make_samlex(_make_client(address_regs={_REG_MAP["REG_CHARGE_STATE"]: [1]}))
+    s.read_status_data()
+    assert s.energy_data["dc"]["charge_state"] == 5, (
+        "Samlex Equalization (1) should map to Victron Equalise (5), not Bulk (1)"
+    )
+
+
+def test_charge_state_float_passes_through():
+    """Samlex 3 (Float) → Victron 3 (Float)."""
     s = _make_samlex(_make_client(address_regs={_REG_MAP["REG_CHARGE_STATE"]: [3]}))
     s.read_status_data()
     assert s.energy_data["dc"]["charge_state"] == 3
+
+
+def test_charge_state_standby_maps_to_idle():
+    """Samlex 0 (Standby) → Victron 0 (Idle)."""
+    s = _make_samlex(_make_client(address_regs={_REG_MAP["REG_CHARGE_STATE"]: [0]}))
+    s.read_status_data()
+    assert s.energy_data["dc"]["charge_state"] == 0
+
+
+def test_charge_state_inverting_passes_through():
+    """Samlex 9 (Inverting) → Victron 9 (Inverting)."""
+    s = _make_samlex(_make_client(address_regs={_REG_MAP["REG_CHARGE_STATE"]: [9]}))
+    s.read_status_data()
+    assert s.energy_data["dc"]["charge_state"] == 9
 
 
 if __name__ == "__main__":
@@ -226,11 +294,18 @@ if __name__ == "__main__":
     test_soc_stored()
     test_ac_in_connected_stored()
     test_ac_in_voltage_scaled()
-    test_status_running_when_fault_zero_and_power_positive()
-    test_status_standby_when_fault_zero_and_power_zero()
-    test_status_error_when_fault_nonzero()
-    test_status_error_on_fault_register_read_failure()
+    test_ac_in_power_derived_from_voltage_and_current()
+    test_ac_in_power_is_zero_when_disconnected()
+    test_status_inverting_when_ac_disconnected()
+    test_status_absorption_when_ac_connected_and_absorbing()
+    test_status_passthru_when_ac_connected_charger_standby()
+    test_status_fault_when_fault_nonzero()
+    test_status_fault_on_comms_failure()
     test_returns_true_when_all_reads_succeed()
     test_returns_false_when_any_read_fails()
-    test_charge_state_stored()
+    test_charge_state_absorption_passes_through()
+    test_charge_state_equalization_maps_to_victron_equalise()
+    test_charge_state_float_passes_through()
+    test_charge_state_standby_maps_to_idle()
+    test_charge_state_inverting_passes_through()
     print("All 033 tests passed.")

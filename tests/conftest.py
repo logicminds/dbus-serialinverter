@@ -239,3 +239,13 @@ def modbus_mock():
     client.read_input_registers.return_value = make_modbus_result([0])
     client.write_registers.return_value = make_modbus_result([0])
     return client
+
+
+# ── Collection exclusions ────────────────────────────────────────────────────
+# Manual integration tests that mutate sys.modules at import time (e.g. deleting
+# pymodbus stubs) or require a live TCP server. They are run standalone, not via
+# pytest.
+collect_ignore = [
+    "test_samlex_integration.py",
+    "test_samlex_tcp_integration.py",
+]

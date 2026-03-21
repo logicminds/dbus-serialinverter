@@ -55,22 +55,45 @@ def _load_module(inverter_type="Dummy"):
         _utils.INVERTER_TYPE = old
 
 
-# ── Module-level: expected_inverter_types selection ───────────────────────────
+# ── Module-level: _resolve_inverter_types() selection ────────────────────────
+# _resolve_inverter_types() reads utils.INVERTER_TYPE at call-time, so each test
+# must set it around the call (the module is loaded once and reused).
+
+import utils as _utils_mod
+
+_mod_cache = {}
+
+
+def _get_mod():
+    """Load the main module once and cache it."""
+    if "mod" not in _mod_cache:
+        _mod_cache["mod"] = _load_module("")
+    return _mod_cache["mod"]
+
+
+def _call_resolve(inverter_type, port):
+    """Temporarily set INVERTER_TYPE and call _resolve_inverter_types."""
+    old = _utils_mod.INVERTER_TYPE
+    _utils_mod.INVERTER_TYPE = inverter_type
+    try:
+        return _get_mod()._resolve_inverter_types(port)
+    finally:
+        _utils_mod.INVERTER_TYPE = old
+
 
 def test_expected_types_dummy_explicit():
-    """INVERTER_TYPE='Dummy' → expected_inverter_types contains only Dummy."""
-    mod = _load_module("Dummy")
+    """INVERTER_TYPE='Dummy' → _resolve_inverter_types returns only Dummy."""
     from dummy import Dummy
-    assert len(mod.expected_inverter_types) == 1
-    assert mod.expected_inverter_types[0]["inverter"] is Dummy
+    result = _call_resolve("Dummy", "/dev/null")
+    assert len(result) == 1
+    assert result[0]["inverter"] is Dummy
 
 
 def test_expected_types_auto_detect():
-    """INVERTER_TYPE='' → expected_inverter_types equals _REAL_INVERTER_TYPES (Solis + Samlex)."""
-    mod = _load_module("")
+    """INVERTER_TYPE='' + serial port → _resolve_inverter_types returns Solis + Samlex."""
     from solis import Solis
     from samlex import Samlex
-    classes = [t["inverter"] for t in mod.expected_inverter_types]
+    classes = [t["inverter"] for t in _call_resolve("", "/dev/null")]
     assert Solis in classes
     assert Samlex in classes
     # Order: Solis first
@@ -78,27 +101,43 @@ def test_expected_types_auto_detect():
 
 
 def test_expected_types_explicit_solis():
-    """INVERTER_TYPE='Solis' → expected_inverter_types contains only Solis."""
-    mod = _load_module("Solis")
+    """INVERTER_TYPE='Solis' → _resolve_inverter_types returns only Solis."""
     from solis import Solis
-    assert len(mod.expected_inverter_types) == 1
-    assert mod.expected_inverter_types[0]["inverter"] is Solis
+    result = _call_resolve("Solis", "/dev/null")
+    assert len(result) == 1
+    assert result[0]["inverter"] is Solis
 
 
 def test_expected_types_explicit_samlex():
-    """INVERTER_TYPE='Samlex' → expected_inverter_types contains only Samlex."""
-    mod = _load_module("Samlex")
+    """INVERTER_TYPE='Samlex' → _resolve_inverter_types returns only Samlex."""
     from samlex import Samlex
-    assert len(mod.expected_inverter_types) == 1
-    assert mod.expected_inverter_types[0]["inverter"] is Samlex
+    result = _call_resolve("Samlex", "/dev/null")
+    assert len(result) == 1
+    assert result[0]["inverter"] is Samlex
 
 
 def test_real_inverter_types_have_baudrate():
     """_REAL_INVERTER_TYPES entries must carry a non-negative baudrate."""
-    mod = _load_module("")
+    mod = _get_mod()
     for entry in mod._REAL_INVERTER_TYPES:
         assert "baudrate" in entry
         assert entry["baudrate"] >= 0
+
+
+def test_resolve_inverter_types_tcp_auto_detect():
+    """INVERTER_TYPE='' + tcp:// port → _resolve_inverter_types returns SamlexTCP."""
+    from samlex_tcp import SamlexTCP
+    result = _call_resolve("", "tcp://localhost:5020")
+    assert len(result) == 1
+    assert result[0]["inverter"] is SamlexTCP
+
+
+def test_resolve_inverter_types_samlex_tcp_explicit():
+    """INVERTER_TYPE='SamlexTCP' → _resolve_inverter_types returns SamlexTCP."""
+    from samlex_tcp import SamlexTCP
+    result = _call_resolve("SamlexTCP", "/dev/null")
+    assert len(result) == 1
+    assert result[0]["inverter"] is SamlexTCP
 
 
 # ── main(): sys.exit(1) when no inverter found ────────────────────────────────
@@ -108,12 +147,12 @@ def test_main_exits_on_no_inverter(monkeypatch):
     mod = _load_module("Dummy")
     monkeypatch.setattr(mod, "sleep", mock.MagicMock())
 
-    # Override expected_inverter_types so all fail
     fail_class = type("_Fail", (), {
         "__init__": lambda self, **kw: None,
         "test_connection": lambda self: False,
     })
-    mod.expected_inverter_types = [{"inverter": fail_class, "baudrate": 0, "slave": 0}]
+    monkeypatch.setattr(mod, "_resolve_inverter_types",
+                        lambda port: [{"inverter": fail_class, "baudrate": 0, "slave": 0}])
     monkeypatch.setattr(sys, "argv", ["dbus-serialinverter.py", "/dev/null"])
 
     with pytest.raises(SystemExit) as exc:
@@ -138,7 +177,8 @@ def test_main_runs_mainloop_on_success(monkeypatch):
         def log_settings(self):
             pass
 
-    mod.expected_inverter_types = [{"inverter": _FakeInverterClass, "baudrate": 0, "slave": 0}]
+    monkeypatch.setattr(mod, "_resolve_inverter_types",
+                        lambda port: [{"inverter": _FakeInverterClass, "baudrate": 0, "slave": 0}])
 
     # Fake DbusHelper
     fake_helper = mock.MagicMock()
@@ -179,7 +219,8 @@ def test_main_exits_when_setup_vedbus_fails(monkeypatch):
         def log_settings(self):
             pass
 
-    mod.expected_inverter_types = [{"inverter": _FakeInverterClass, "baudrate": 0, "slave": 0}]
+    monkeypatch.setattr(mod, "_resolve_inverter_types",
+                        lambda port: [{"inverter": _FakeInverterClass, "baudrate": 0, "slave": 0}])
 
     fake_helper = mock.MagicMock()
     fake_helper.setup_vedbus.return_value = False
@@ -226,9 +267,11 @@ def test_main_get_port_accepts_valid_paths(monkeypatch):
         "__init__": lambda self, **kw: None,
         "test_connection": lambda self: False,
     })
-    mod.expected_inverter_types = [{"inverter": fail_class, "baudrate": 0, "slave": 0}]
+    monkeypatch.setattr(mod, "_resolve_inverter_types",
+                        lambda port: [{"inverter": fail_class, "baudrate": 0, "slave": 0}])
 
-    for valid_port in ["/dev/ttyUSB0", "/dev/ttyS0", "/dev/ttyAMA0", "/dev/null"]:
+    for valid_port in ["/dev/ttyUSB0", "/dev/ttyS0", "/dev/ttyAMA0", "/dev/null",
+                       "tcp://localhost:5020", "tcp://192.168.1.100:502"]:
         monkeypatch.setattr(sys, "argv", ["dbus-serialinverter.py", valid_port])
         with pytest.raises(SystemExit) as exc:
             mod.main()
@@ -252,7 +295,8 @@ def test_main_keyboard_interrupt_exits_cleanly(monkeypatch):
         def log_settings(self):
             pass
 
-    mod.expected_inverter_types = [{"inverter": _FakeInverterClass, "baudrate": 0, "slave": 0}]
+    monkeypatch.setattr(mod, "_resolve_inverter_types",
+                        lambda port: [{"inverter": _FakeInverterClass, "baudrate": 0, "slave": 0}])
 
     fake_helper = mock.MagicMock()
     fake_helper.setup_vedbus.return_value = True

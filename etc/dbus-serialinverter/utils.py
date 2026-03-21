@@ -21,9 +21,14 @@ logging.basicConfig()
 logger = logging.getLogger("SerialInverter")
 
 # Config
+# Load template config first, then private config (which overrides template values)
+_config_dir = Path(__file__).parent
+config_file_path = str(_config_dir / "config.ini")
+config_private_path = str(_config_dir / "config.ini.private")
+
 config = configparser.ConfigParser()
-config_file_path = str(Path(__file__).parent / "config.ini")
-config.read([config_file_path])
+# Read template first, then private (which overrides)
+config.read([config_file_path, config_private_path])
 
 if not config.has_section('INVERTER'):
     raise SystemExit("Config file missing or invalid: %s" % config_file_path)

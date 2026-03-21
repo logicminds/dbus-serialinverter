@@ -4,6 +4,32 @@ from modbus_inverter import ModbusInverter
 from utils import logger
 import utils
 
+# Samlex Charger State (raw) → Victron /State (vebus operating state)
+# Derived when AC is connected.  Fault and AC-disconnected are handled first.
+# Victron: 4=Absorption, 5=Float, 6=Storage, 7=Equalize, 8=Passthru, 9=Inverting
+_VEBUS_STATE_FROM_CHARGE = {
+    0: 8,  # Standby (no charging) → Passthru
+    1: 7,  # Equalization          → Equalize
+    2: 4,  # Absorption            → Absorption
+    3: 5,  # Float                 → Float
+    4: 6,  # Storage               → Storage
+    9: 9,  # Inverting             → Inverting
+}
+
+# Samlex EVO Charger State register → Victron /VebusChargeState
+# Samlex (reg 8): 0=Standby, 1=Equalization, 2=Absorption, 3=Float, 4=Storage, 9=Inverting
+# Victron:        0=Idle,    1=Bulk,          2=Absorption, 3=Float, 4=Storage, 5=Equalise, 9=Inverting
+# Note: Samlex has no distinct Bulk stage; passing raw values would mismap
+# Equalization (Samlex 1) as Bulk (Victron 1).
+_CHARGE_STATE_MAP = {
+    0: 0,  # Standby      → Idle
+    1: 5,  # Equalization → Equalise
+    2: 2,  # Absorption   → Absorption
+    3: 3,  # Float        → Float
+    4: 4,  # Storage      → Storage
+    9: 9,  # Inverting    → Inverting
+}
+
 # All keys that must be present and numeric in [SAMLEX_REGISTERS] before the
 # driver attempts any Modbus communication.  test_connection() validates these.
 REQUIRED_SAMLEX_REGISTERS = (
@@ -85,14 +111,25 @@ class Samlex(ModbusInverter):
             logger.error("_read_group failed for keys %s: %s", keys, exc)
             return None
 
+    @staticmethod
+    def _to_int16(value):
+        """Convert a uint16 Modbus register value to signed int16."""
+        return value - 65536 if value > 32767 else value
+
     def _apply_scaled_fields(self, group_result, fields):
         """Apply scaled assignments from a group read result.
 
-        fields: list of (reg_key, scale_key, section, field_name, digits)
+        fields: list of (reg_key, scale_key, section, field_name, digits[, signed])
+        When signed is True the raw uint16 is interpreted as int16 before scaling.
         """
-        for reg_key, scale_key, section, field_name, digits in fields:
+        for field in fields:
+            reg_key, scale_key, section, field_name, digits = field[:5]
+            signed = field[5] if len(field) > 5 else False
+            raw = group_result[reg_key]
+            if signed:
+                raw = self._to_int16(raw)
             self.energy_data[section][field_name] = round(
-                group_result[reg_key] * self._scale(scale_key), digits
+                raw * self._scale(scale_key), digits
             )
 
     # ── Inverter interface ────────────────────────────────────────────────────
@@ -145,8 +182,8 @@ class Samlex(ModbusInverter):
         if ac_out:
             self._apply_scaled_fields(ac_out, [
                 ("REG_AC_OUT_VOLTAGE", "SCALE_AC_OUT_VOLTAGE", "L1", "ac_voltage", 1),
-                ("REG_AC_OUT_CURRENT", "SCALE_AC_OUT_CURRENT", "L1", "ac_current", 2),
-                ("REG_AC_OUT_POWER",   "SCALE_AC_OUT_POWER",   "L1", "ac_power",   0),
+                ("REG_AC_OUT_CURRENT", "SCALE_AC_OUT_CURRENT", "L1", "ac_current", 2, True),
+                ("REG_AC_OUT_POWER",   "SCALE_AC_OUT_POWER",   "L1", "ac_power",   0, True),
             ])
             self.energy_data["overall"]["ac_power"] = self.energy_data["L1"]["ac_power"]
         else:
@@ -157,9 +194,12 @@ class Samlex(ModbusInverter):
         if dc:
             self._apply_scaled_fields(dc, [
                 ("REG_DC_VOLTAGE", "SCALE_DC_VOLTAGE", "dc", "voltage", 2),
-                ("REG_DC_CURRENT", "SCALE_DC_CURRENT", "dc", "current", 2),
+                ("REG_DC_CURRENT", "SCALE_DC_CURRENT", "dc", "current", 2, True),
             ])
             self.energy_data["dc"]["soc"] = round(dc["REG_SOC"], 1)
+            v = self.energy_data["dc"]["voltage"]
+            i = self.energy_data["dc"]["current"]
+            self.energy_data["dc"]["power"] = round(v * i, 0) if v is not None and i is not None else None
         else:
             error = True
 
@@ -168,26 +208,37 @@ class Samlex(ModbusInverter):
         if ac_in:
             self._apply_scaled_fields(ac_in, [
                 ("REG_AC_IN_VOLTAGE",  "SCALE_AC_IN_VOLTAGE",  "ac_in", "voltage", 1),
-                ("REG_AC_IN_CURRENT",  "SCALE_AC_IN_CURRENT",  "ac_in", "current", 2),
+                ("REG_AC_IN_CURRENT",  "SCALE_AC_IN_CURRENT",  "ac_in", "current", 2, True),
             ])
-            self.energy_data["ac_in"]["connected"] = ac_in["REG_AC_IN_CONNECTED"]
+            v = self.energy_data["ac_in"]["voltage"]
+            i = self.energy_data["ac_in"]["current"]
+            self.energy_data["ac_in"]["power"] = round(v * i, 0) if v is not None and i is not None else None
+            # Working status: 0=Power saving, 1=AC input normal, 2=AC input abnormal, 3=Inverting, 4=Fault
+            # "Connected" means AC input is present and normal (value == 1)
+            self.energy_data["ac_in"]["connected"] = 1 if ac_in["REG_AC_IN_CONNECTED"] == 1 else 0
         else:
             error = True
 
         # Fault / status (batch)
-        # Conservative mapping: non-zero fault → 10 (Error), no fault + AC output > 0 → 7 (Running), else → 8 (Standby)
         status_regs = self._read_group(["REG_FAULT", "REG_CHARGE_STATE"])
         if status_regs:
             fault = status_regs["REG_FAULT"]
+            raw_cs = status_regs["REG_CHARGE_STATE"]
+            self.energy_data["dc"]["charge_state"] = _CHARGE_STATE_MAP.get(raw_cs, 0)
+            if raw_cs not in _CHARGE_STATE_MAP:
+                logger.warning("Unknown Samlex charge state %s; defaulting to Idle", raw_cs)
+
+            # Derive vebus /State from fault, AC connection, and charge stage.
+            # Priority: fault > AC disconnected > charge-stage-based state.
+            ac_connected = self.energy_data["ac_in"]["connected"]
             if fault != 0:
-                self.status = 10  # Error
-            elif (self.energy_data["L1"]["ac_power"] or 0) > 0:
-                self.status = 7  # Running
+                self.status = 2   # Fault
+            elif ac_connected != 1:
+                self.status = 9   # Inverting (no AC input)
             else:
-                self.status = 8  # Standby
-            self.energy_data["dc"]["charge_state"] = status_regs["REG_CHARGE_STATE"]
+                self.status = _VEBUS_STATE_FROM_CHARGE.get(raw_cs, 9)
         else:
-            self.status = 10  # Error on read failure
+            self.status = 2   # Fault (comms failure — safest default)
             error = True
 
         logger.debug("Samlex status: %s", self.status)
