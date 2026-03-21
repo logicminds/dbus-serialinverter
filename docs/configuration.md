@@ -1,6 +1,6 @@
 # Configuration Guide
 
-Edit `etc/dbus-serialinverter/config.ini` to configure the driver.
+On a device installed from the release tarball, edit `/data/etc/dbus-serialinverter/config.ini` to configure the driver (for a local source checkout, the corresponding file is `etc/dbus-serialinverter/config.ini`).
 
 ## Quick-Start Templates
 
