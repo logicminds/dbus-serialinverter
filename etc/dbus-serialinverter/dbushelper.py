@@ -245,20 +245,20 @@ class DbusHelper:
             self._dbusservice["/Ac/Out/L1/I"] = self.inverter.energy_data["L1"]["ac_current"]
             self._dbusservice["/Ac/Out/L1/P"] = self.inverter.energy_data["L1"]["ac_power"]
             dc = self.inverter.energy_data.get("dc", {})
-            self._dbusservice["/Dc/0/Voltage"] = dc.get("voltage")
-            self._dbusservice["/Dc/0/Current"] = dc.get("current")
-            self._dbusservice["/Dc/0/Power"] = dc.get("power")
-            self._dbusservice["/Soc"] = dc.get("soc")
+            self._dbusservice["/Dc/0/Voltage"] = dc.get("voltage") or 0
+            self._dbusservice["/Dc/0/Current"] = dc.get("current") or 0
+            self._dbusservice["/Dc/0/Power"] = dc.get("power") or 0
+            self._dbusservice["/Soc"] = dc.get("soc") or 0
             charge_state = dc.get("charge_state")
             if charge_state is not None:
                 self._dbusservice["/VebusChargeState"] = charge_state
             ac_in = self.inverter.energy_data.get("ac_in", {})
-            connected = ac_in.get("connected")
+            connected = ac_in.get("connected") or 0
             self._dbusservice["/Ac/State/AcIn1Available"] = 1 if connected == 1 else 0
             self._dbusservice["/Ac/ActiveIn/ActiveInput"] = 0 if connected == 1 else 240
-            self._dbusservice["/Ac/ActiveIn/L1/V"] = ac_in.get("voltage")
-            self._dbusservice["/Ac/ActiveIn/L1/I"] = ac_in.get("current")
-            self._dbusservice["/Ac/ActiveIn/L1/P"] = ac_in.get("power")
+            self._dbusservice["/Ac/ActiveIn/L1/V"] = ac_in.get("voltage") or 0
+            self._dbusservice["/Ac/ActiveIn/L1/I"] = ac_in.get("current") or 0
+            self._dbusservice["/Ac/ActiveIn/L1/P"] = ac_in.get("power") or 0
             self._dbusservice["/Ac/ActiveIn/Connected"] = connected
         else:
             # pvinverter publish
