@@ -82,7 +82,7 @@ Reboot your device.
 Check logs after reboot:
 
 ```bash
-tail -f /var/log/dbus-serialinverter.<TTY>
+tail -f /var/log/dbus-serialinverter.<TTY>/current
 ```
 
 ## Local Testing (no hardware)
