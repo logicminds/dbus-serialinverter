@@ -12,10 +12,12 @@ Usage:
 Or from command line:
     python dbus-serialinverter.py tcp://localhost:5020
 
-The port argument can be:
+The port argument accepted by this class can be:
     - /dev/ttyUSB0 (serial - passed to parent Samlex class)
     - tcp://localhost:5020 (TCP - handled by this class)
-    - 192.168.1.100:502 (TCP shorthand)
+    - 192.168.1.100:502 (TCP shorthand - parsed by this class,
+      but note that get_port() in dbus-serialinverter.py only
+      validates tcp:// URLs and /dev/ paths)
 """
 
 import re

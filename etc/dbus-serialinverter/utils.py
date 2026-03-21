@@ -21,7 +21,7 @@ logging.basicConfig()
 logger = logging.getLogger("SerialInverter")
 
 # Config
-# Load private config first (if present), then fall back to template config
+# Load template config first, then private config (which overrides template values)
 _config_dir = Path(__file__).parent
 config_file_path = str(_config_dir / "config.ini")
 config_private_path = str(_config_dir / "config.ini.private")

@@ -173,7 +173,7 @@ def test_ac_in_power_derived_from_voltage_and_current():
     )
 
 
-def test_ac_in_power_is_none_when_disconnected():
+def test_ac_in_power_is_zero_when_disconnected():
     """When AC input is disconnected (0 V, 0 A), power should be 0, not None."""
     s = _make_samlex(_make_client(address_regs={
         _REG_MAP["REG_AC_IN_VOLTAGE"]: [0],
@@ -295,7 +295,7 @@ if __name__ == "__main__":
     test_ac_in_connected_stored()
     test_ac_in_voltage_scaled()
     test_ac_in_power_derived_from_voltage_and_current()
-    test_ac_in_power_is_none_when_disconnected()
+    test_ac_in_power_is_zero_when_disconnected()
     test_status_inverting_when_ac_disconnected()
     test_status_absorption_when_ac_connected_and_absorbing()
     test_status_passthru_when_ac_connected_charger_standby()

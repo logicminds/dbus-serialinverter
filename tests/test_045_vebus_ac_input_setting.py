@@ -29,7 +29,7 @@ def _capture_settings(prefix):
         captured["settings"] = settings
         # Provide a subscriptable object so get_role_instance() works
         inst = mock.MagicMock()
-        inst.__getitem__ = lambda self, k: "vebus:257" if prefix.endswith("vebus") else "inverter:20"
+        inst.__getitem__.side_effect = lambda k: "vebus:257" if prefix.endswith("vebus") else "inverter:20"
         return inst
 
     inv = _make_inverter(prefix)

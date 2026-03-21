@@ -33,7 +33,9 @@ _TCP_INVERTER_TYPES = [
 def _resolve_inverter_types(port: str):
     """Return the list of inverter types to try based on config and port."""
     inverter_type = utils.INVERTER_TYPE
-    is_tcp = port.startswith("tcp://")
+    is_tcp = port.startswith("tcp://") or (
+        ":" in port and not port.startswith("/")
+    )
 
     if inverter_type == "Dummy":
         return [{"inverter": Dummy, "baudrate": 0, "slave": 0}]
@@ -91,7 +93,11 @@ def main():
         port = sys.argv[1]
         serial_ok = re.match(r"^/dev/(tty[A-Za-z0-9_]+|null)$", port)
         tcp_ok = re.match(r"^tcp://[^:]+:\d+$", port)
-        if not serial_ok and not tcp_ok:
+        # Also accept host:port shorthand (e.g. localhost:5020, 192.168.1.100:502)
+        tcp_shorthand = re.match(r"^[A-Za-z0-9._-]+:\d+$", port) if not serial_ok and not tcp_ok else None
+        if tcp_shorthand:
+            port = "tcp://" + port
+        if not serial_ok and not tcp_ok and not tcp_shorthand:
             logger.error("Invalid port path: %s", port)
             sys.exit(1)
         return port

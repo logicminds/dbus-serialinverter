@@ -160,7 +160,7 @@ python tests/samlex_tcp_server.py -v
 | Scenario | Effect |
 |----------|--------|
 | `normal` | Standard operation (default) |
-| `fault` | Sets fault register, status becomes Error (10) |
+| `fault` | Sets fault register, status becomes VE.Bus state 2 (Fault) |
 | `low_battery` | Low SOC (15%), high discharge current |
 | `ac_disconnect` | AC input disconnected, inverting mode |
 | `heavy_load` | High power output (3800W) |
@@ -185,7 +185,7 @@ cp etc/dbus-serialinverter/config.ini.samlexTCP etc/dbus-serialinverter/config.i
 ```
 
 This config file contains:
-- `TYPE=SamlexTCP` (or keep as Samlex, both work with tcp:// URLs)
+- `TYPE=SamlexTCP` (required for tcp:// URLs; leaving TYPE empty will auto-select SamlexTCP when using a tcp:// port)
 - Placeholder register addresses (4000-4150 range) that match the test server
 - Example scale factors
 
@@ -273,7 +273,7 @@ python dbus-serialinverter.py tcp://localhost:5020
 
 # Terminal 3: Monitor
 dbus-spy
-# Watch status change to Error (10) due to fault scenario
+# Watch status change to VE.Bus state 2 (Fault) due to fault scenario
 ```
 
 ### Workflow 3: Hardware Validation
@@ -386,7 +386,7 @@ print(f'Actual identity: {r.registers[0]}')  # Match this in config
 TYPE=SamlexMock
 
 # Protocol testing (with TCP server)
-TYPE=Samlex  # + use tcp:// URL
+TYPE=SamlexTCP  # or leave TYPE empty and use tcp:// URL for auto-detect
 
 # Production hardware
 TYPE=Samlex

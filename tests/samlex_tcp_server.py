@@ -78,10 +78,11 @@ _SCALE_MAP: Dict[str, str] = {
 
 
 def _load_samlex_config() -> configparser.ConfigParser:
-    """Load config.ini and config.ini.private (if present) from the driver directory.
+    """Load config.ini.samlexTCP from the driver directory.
 
-    This is the same load order that utils.py uses, so the register map seen
-    here is identical to the one the driver itself will use at runtime.
+    This reads the TCP-specific config with placeholder register addresses
+    that match the test server, so the register map seen here is identical
+    to the one the driver uses when running against the TCP server.
     """
     driver_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "etc", "dbus-serialinverter")
     cfg = configparser.ConfigParser()
@@ -96,9 +97,9 @@ def _load_samlex_config() -> configparser.ConfigParser:
 class SamlexModbusServer:
     """Modbus TCP server that simulates Samlex EVO inverter registers.
 
-    Register addresses and scale factors are read from config.ini (and
-    config.ini.private when present) using the same load order as the
-    driver itself, so there is a single source of truth for the register map.
+    Register addresses and scale factors are read from config.ini.samlexTCP
+    so there is a single source of truth for the register map used in
+    TCP testing.
     """
 
     def __init__(self, host: str = "localhost", port: int = 5020,

@@ -10,9 +10,12 @@ for mod in ["dbus", "gi", "gi.repository", "gi.repository.GLib",
             "pymodbus", "pymodbus.client", "pymodbus.constants", "pymodbus.payload"]:
     sys.modules.setdefault(mod, types.ModuleType(mod))
 
-sys.modules["pymodbus.client"].ModbusSerialClient = mock.MagicMock
-sys.modules["pymodbus.constants"].Endian = type("Endian", (), {"Big": 0})()
-sys.modules["pymodbus.payload"].BinaryPayloadDecoder = mock.MagicMock
+if not hasattr(sys.modules["pymodbus.client"], "ModbusSerialClient"):
+    sys.modules["pymodbus.client"].ModbusSerialClient = mock.MagicMock
+if not hasattr(sys.modules["pymodbus.constants"], "Endian"):
+    sys.modules["pymodbus.constants"].Endian = type("Endian", (), {"Big": 0})()
+if not hasattr(sys.modules["pymodbus.payload"], "BinaryPayloadDecoder"):
+    sys.modules["pymodbus.payload"].BinaryPayloadDecoder = mock.MagicMock
 
 # Stub utils
 utils_stub = sys.modules.setdefault("utils", types.ModuleType("utils"))
