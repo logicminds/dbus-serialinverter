@@ -25,12 +25,13 @@ The server supports multiple scenarios:
 import sys
 import os
 import argparse
+import configparser
 import logging
 import time
 import threading
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
-# Add path for pymodbus
+# Add path for pymodbus and driver modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "etc", "dbus-serialinverter"))
 
 from pymodbus.server import StartTcpServer
@@ -43,44 +44,61 @@ logging.basicConfig(
 )
 logger = logging.getLogger("samlex_tcp_server")
 
+# ── Single source of truth: synthetic engineering values for the normal scenario ──
+# Keys match [SAMLEX_REGISTERS] config keys exactly.
+# Scaled registers (REG_*_VOLTAGE / CURRENT / POWER) hold target engineering-unit
+# values; the raw uint16 sent over Modbus is computed as round(value / SCALE_*).
+# Dimensionless/raw registers (FAULT, SOC, CHARGE_STATE, AC_IN_CONNECTED, IDENTITY)
+# are stored as the exact raw uint16 written to the Modbus datastore.
+_NORMAL_VALUES: Dict[str, Any] = {
+    "REG_IDENTITY":        None,   # filled at runtime from identity_value arg
+    "REG_AC_IN_CONNECTED": 1,      # raw: 1 = AC input normal
+    "REG_FAULT":           0,      # raw: 0 = no fault
+    "REG_DC_VOLTAGE":      26.4,   # V
+    "REG_DC_CURRENT":      5.2,    # A (positive = charging)
+    "REG_AC_OUT_VOLTAGE":  120.0,  # V
+    "REG_AC_OUT_CURRENT":  8.33,   # A
+    "REG_AC_OUT_POWER":    1000.0, # W
+    "REG_SOC":             85,     # % (no scale)
+    "REG_CHARGE_STATE":    2,      # raw: 2 = Absorption
+    "REG_AC_IN_VOLTAGE":   120.0,  # V
+    "REG_AC_IN_CURRENT":   4.17,   # A
+}
+
+# Maps each scaled REG_* key to its corresponding SCALE_* key in [SAMLEX_REGISTERS]
+_SCALE_MAP: Dict[str, str] = {
+    "REG_AC_OUT_VOLTAGE": "SCALE_AC_OUT_VOLTAGE",
+    "REG_AC_OUT_CURRENT": "SCALE_AC_OUT_CURRENT",
+    "REG_AC_OUT_POWER":   "SCALE_AC_OUT_POWER",
+    "REG_DC_VOLTAGE":     "SCALE_DC_VOLTAGE",
+    "REG_DC_CURRENT":     "SCALE_DC_CURRENT",
+    "REG_AC_IN_VOLTAGE":  "SCALE_AC_IN_VOLTAGE",
+    "REG_AC_IN_CURRENT":  "SCALE_AC_IN_CURRENT",
+}
+
+
+def _load_samlex_config() -> configparser.ConfigParser:
+    """Load config.ini and config.ini.private (if present) from the driver directory.
+
+    This is the same load order that utils.py uses, so the register map seen
+    here is identical to the one the driver itself will use at runtime.
+    """
+    driver_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "etc", "dbus-serialinverter")
+    cfg = configparser.ConfigParser()
+    cfg.read([
+        os.path.join(driver_dir, "config.ini"),
+        os.path.join(driver_dir, "config.ini.private"),
+    ])
+    return cfg
+
 
 class SamlexModbusServer:
-    """Modbus TCP server that simulates Samlex EVO inverter registers."""
+    """Modbus TCP server that simulates Samlex EVO inverter registers.
 
-    # Default register map for EVO-4024
-    # NOTE: These are PLACEHOLDER addresses for testing only.
-    # They do NOT match real Samlex register addresses (which are NDA-protected).
-    # Using addresses in 4000-4150 range to look realistic but clearly not real.
-    # Address -> Value (raw uint16)
-    DEFAULT_REGISTERS = {
-        # Identity register (EVO-4024 = 0x4024 = 16420)
-        # PLACEHOLDER address - NOT the real register address
-        4021: 16420,
-        # Working status: 1 = AC input normal
-        4084: 1,
-        # Fault: 0 = no fault
-        4092: 0,
-        # DC voltage: 264 raw × 0.1 = 26.4V
-        4115: 264,
-        # DC current: 520 raw × 0.01 = 5.2A (charging)
-        4129: 520,
-        # AC output voltage: 1200 raw × 0.1 = 120.0V
-        4023: 1200,
-        # AC output current: 833 raw × 0.01 = 8.33A
-        4037: 833,
-        # AC output power: 1000 raw × 1.0 = 1000W
-        4056: 1000,
-        # SOC: 85% (no scaling)
-        4048: 85,
-        # Charge state: 2 = Absorption
-        4061: 2,
-        # AC input voltage: 1200 raw × 0.1 = 120.0V
-        4107: 1200,
-        # AC input current: 417 raw × 0.01 = 4.17A
-        4138: 417,
-        # AC input connected: 1 = yes
-        4119: 1,
-    }
+    Register addresses and scale factors are read from config.ini (and
+    config.ini.private when present) using the same load order as the
+    driver itself, so there is a single source of truth for the register map.
+    """
 
     def __init__(self, host: str = "localhost", port: int = 5020,
                  slave_address: int = 1, scenario: str = "normal",
@@ -99,43 +117,79 @@ class SamlexModbusServer:
         self.slave_address = slave_address
         self.scenario = scenario
         self.identity_value = identity_value
+        self._cfg = _load_samlex_config()
         self.registers = self._create_registers()
         self.server_thread: Optional[threading.Thread] = None
         self.server_running = False
 
-    def _create_registers(self) -> Dict[int, int]:
-        """Create register values based on scenario."""
-        regs = dict(self.DEFAULT_REGISTERS)
+    def _build_registers(self, values: Dict[str, Any]) -> Dict[int, int]:
+        """Convert a reg_key→engineering_value dict to addr→raw_uint16.
 
-        # Set identity
-        regs[4021] = self.identity_value
+        Register addresses come from [SAMLEX_REGISTERS] REG_* keys in the
+        loaded config.  Raw values for scaled registers are computed as
+        round(engineering_value / SCALE_*) — the inverse of what the driver
+        does when it reads them.  Registers whose config entry is still '???'
+        are skipped with a warning so the server degrades gracefully when
+        config.ini.private has not been installed.
+        """
+        cfg = self._cfg
+        regs: Dict[int, int] = {}
+        for reg_key, eng_val in values.items():
+            addr_str = cfg.get("SAMLEX_REGISTERS", reg_key, fallback="???").strip()
+            if addr_str == "???":
+                logger.warning("Register %s not configured in config.ini; skipping", reg_key)
+                continue
+            addr = int(addr_str)
+
+            if reg_key == "REG_IDENTITY":
+                raw = self.identity_value
+            elif reg_key in _SCALE_MAP:
+                scale_key = _SCALE_MAP[reg_key]
+                scale_str = cfg.get("SAMLEX_REGISTERS", scale_key, fallback="???").strip()
+                if scale_str == "???":
+                    logger.warning("Scale %s not configured; skipping %s", scale_key, reg_key)
+                    continue
+                raw = round(eng_val / float(scale_str))
+            else:
+                raw = int(eng_val)
+
+            regs[addr] = raw
+        return regs
+
+    def _create_registers(self) -> Dict[int, int]:
+        """Build the Modbus datastore values for the chosen scenario.
+
+        Scenario overrides are expressed in engineering units (volts, amps,
+        watts, raw codes) against the _NORMAL_VALUES keys — never against
+        hard-coded addresses — so the address mapping stays solely in config.
+        """
+        values: Dict[str, Any] = dict(_NORMAL_VALUES)
 
         if self.scenario == "fault":
-            regs[4092] = 1  # Fault code
+            values["REG_FAULT"] = 1
             logger.info("Scenario: FAULT CONDITION")
 
         elif self.scenario == "low_battery":
-            regs[4048] = 15  # Low SOC
-            regs[4129] = 2000  # High discharge current (positive in raw)
+            values["REG_SOC"] = 15
+            values["REG_DC_CURRENT"] = 20.0  # high discharge (positive raw; sign handled by driver)
             logger.info("Scenario: LOW BATTERY (15% SOC)")
 
         elif self.scenario == "ac_disconnect":
-            regs[4084] = 3  # Inverting
-            regs[4119] = 0  # AC input disconnected
-            regs[4107] = 0  # AC input voltage 0
-            regs[4138] = 0  # AC input current 0
-            regs[4061] = 9  # Charge state = Inverting
+            values["REG_AC_IN_CONNECTED"] = 3  # raw: 3 = Inverting
+            values["REG_AC_IN_VOLTAGE"] = 0.0
+            values["REG_AC_IN_CURRENT"] = 0.0
+            values["REG_CHARGE_STATE"] = 9    # raw: 9 = Inverting
             logger.info("Scenario: AC INPUT DISCONNECTED")
 
         elif self.scenario == "heavy_load":
-            regs[4056] = 3800  # High power output
-            regs[4037] = 317  # ~31.7A current (3800W / 120V)
+            values["REG_AC_OUT_POWER"] = 3800.0
+            values["REG_AC_OUT_CURRENT"] = 31.7  # 3800 W / 120 V
             logger.info("Scenario: HEAVY LOAD (3800W)")
 
         else:
             logger.info("Scenario: NORMAL OPERATION")
 
-        return regs
+        return self._build_registers(values)
 
     def _make_context(self) -> ModbusServerContext:
         """Create Modbus server context with register data."""
