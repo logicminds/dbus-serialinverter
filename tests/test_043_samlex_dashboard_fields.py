@@ -72,8 +72,15 @@ def _make_config():
 
 
 def _raw(eng_val, scale_str):
-    """Convert an engineering value to the raw uint16 written to Modbus."""
-    return round(eng_val / float(scale_str))
+    """Convert an engineering value to the raw uint16 written to Modbus.
+
+    Negative values are stored as two's complement uint16, matching real
+    Modbus hardware behaviour for signed int16 registers.
+    """
+    raw = round(eng_val / float(scale_str))
+    if raw < 0:
+        raw = raw & 0xFFFF
+    return raw
 
 
 # ── Scenario register tables ──────────────────────────────────────────────────
@@ -163,6 +170,20 @@ _SCENARIOS = {
         "REG_CHARGE_STATE":    2,
         "REG_AC_IN_VOLTAGE":   _raw(120.0, "0.1"),
         "REG_AC_IN_CURRENT":   _raw(33.0,  "0.01"),  # shore > output (powers load + charges battery)
+    },
+    "heavy_load_battery": {
+        "REG_IDENTITY":       16420,
+        "REG_AC_IN_CONNECTED": 3,        # 3 = Inverting (no AC input)
+        "REG_FAULT":           0,
+        "REG_DC_VOLTAGE":      _raw(24.8,   "0.1"),   # sagging under load
+        "REG_DC_CURRENT":      _raw(-145.0, "0.01"),   # negative = discharging (two's complement)
+        "REG_AC_OUT_VOLTAGE":  _raw(120.0,  "0.1"),
+        "REG_AC_OUT_CURRENT":  _raw(29.2,   "0.01"),
+        "REG_AC_OUT_POWER":    _raw(3500.0, "1.0"),
+        "REG_SOC":             62,
+        "REG_CHARGE_STATE":    9,         # 9 = Inverting
+        "REG_AC_IN_VOLTAGE":   0,
+        "REG_AC_IN_CURRENT":   0,
     },
 }
 
@@ -396,6 +417,57 @@ def test_heavy_load_with_input_battery_charging():
     s = _run("heavy_load_with_input")
     assert s.energy_data["dc"]["current"] > 0, "Battery should be charging (positive DC current)"
     assert s.energy_data["dc"]["power"]   > 0
+
+
+# ── Heavy load on battery scenario ───────────────────────────────────────────
+
+def test_heavy_load_battery_all_fields_populated():
+    s = _run("heavy_load_battery")
+    _assert_ac_out_populated(s, "heavy_load_battery")
+    _assert_dc_populated(s, "heavy_load_battery")
+    _assert_ac_in_populated(s, "heavy_load_battery")
+    _assert_status_set(s, "heavy_load_battery")
+
+
+def test_heavy_load_battery_dc_current_is_negative():
+    """DC current must be negative when discharging (int16 two's complement)."""
+    s = _run("heavy_load_battery")
+    assert s.energy_data["dc"]["current"] < 0, (
+        f"DC current should be negative (discharging), got {s.energy_data['dc']['current']}"
+    )
+    assert abs(s.energy_data["dc"]["current"] - (-145.0)) < 0.1
+
+
+def test_heavy_load_battery_dc_power_is_negative():
+    """DC power should be negative (V * negative I) when discharging."""
+    s = _run("heavy_load_battery")
+    dc = s.energy_data["dc"]
+    assert dc["power"] < 0, f"DC power should be negative when discharging, got {dc['power']}"
+    expected = round(dc["voltage"] * dc["current"], 0)
+    assert dc["power"] == expected
+
+
+def test_heavy_load_battery_ac_output():
+    s = _run("heavy_load_battery")
+    assert s.energy_data["L1"]["ac_power"] == 3500.0
+    assert abs(s.energy_data["L1"]["ac_current"] - 29.2) < 0.1
+
+
+def test_heavy_load_battery_ac_input_disconnected():
+    s = _run("heavy_load_battery")
+    assert s.energy_data["ac_in"]["connected"] == 0
+    assert s.energy_data["ac_in"]["voltage"] == 0.0
+    assert s.energy_data["ac_in"]["current"] == 0.0
+
+
+def test_heavy_load_battery_state_is_inverting():
+    s = _run("heavy_load_battery")
+    assert s.status == 9  # Inverting
+
+
+def test_heavy_load_battery_soc():
+    s = _run("heavy_load_battery")
+    assert s.energy_data["dc"]["soc"] == 62.0
 
 
 if __name__ == "__main__":

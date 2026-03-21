@@ -111,14 +111,25 @@ class Samlex(ModbusInverter):
             logger.error("_read_group failed for keys %s: %s", keys, exc)
             return None
 
+    @staticmethod
+    def _to_int16(value):
+        """Convert a uint16 Modbus register value to signed int16."""
+        return value - 65536 if value > 32767 else value
+
     def _apply_scaled_fields(self, group_result, fields):
         """Apply scaled assignments from a group read result.
 
-        fields: list of (reg_key, scale_key, section, field_name, digits)
+        fields: list of (reg_key, scale_key, section, field_name, digits[, signed])
+        When signed is True the raw uint16 is interpreted as int16 before scaling.
         """
-        for reg_key, scale_key, section, field_name, digits in fields:
+        for field in fields:
+            reg_key, scale_key, section, field_name, digits = field[:5]
+            signed = field[5] if len(field) > 5 else False
+            raw = group_result[reg_key]
+            if signed:
+                raw = self._to_int16(raw)
             self.energy_data[section][field_name] = round(
-                group_result[reg_key] * self._scale(scale_key), digits
+                raw * self._scale(scale_key), digits
             )
 
     # ── Inverter interface ────────────────────────────────────────────────────
@@ -171,8 +182,8 @@ class Samlex(ModbusInverter):
         if ac_out:
             self._apply_scaled_fields(ac_out, [
                 ("REG_AC_OUT_VOLTAGE", "SCALE_AC_OUT_VOLTAGE", "L1", "ac_voltage", 1),
-                ("REG_AC_OUT_CURRENT", "SCALE_AC_OUT_CURRENT", "L1", "ac_current", 2),
-                ("REG_AC_OUT_POWER",   "SCALE_AC_OUT_POWER",   "L1", "ac_power",   0),
+                ("REG_AC_OUT_CURRENT", "SCALE_AC_OUT_CURRENT", "L1", "ac_current", 2, True),
+                ("REG_AC_OUT_POWER",   "SCALE_AC_OUT_POWER",   "L1", "ac_power",   0, True),
             ])
             self.energy_data["overall"]["ac_power"] = self.energy_data["L1"]["ac_power"]
         else:
@@ -183,7 +194,7 @@ class Samlex(ModbusInverter):
         if dc:
             self._apply_scaled_fields(dc, [
                 ("REG_DC_VOLTAGE", "SCALE_DC_VOLTAGE", "dc", "voltage", 2),
-                ("REG_DC_CURRENT", "SCALE_DC_CURRENT", "dc", "current", 2),
+                ("REG_DC_CURRENT", "SCALE_DC_CURRENT", "dc", "current", 2, True),
             ])
             self.energy_data["dc"]["soc"] = round(dc["REG_SOC"], 1)
             v = self.energy_data["dc"]["voltage"]
@@ -197,7 +208,7 @@ class Samlex(ModbusInverter):
         if ac_in:
             self._apply_scaled_fields(ac_in, [
                 ("REG_AC_IN_VOLTAGE",  "SCALE_AC_IN_VOLTAGE",  "ac_in", "voltage", 1),
-                ("REG_AC_IN_CURRENT",  "SCALE_AC_IN_CURRENT",  "ac_in", "current", 2),
+                ("REG_AC_IN_CURRENT",  "SCALE_AC_IN_CURRENT",  "ac_in", "current", 2, True),
             ])
             v = self.energy_data["ac_in"]["voltage"]
             i = self.energy_data["ac_in"]["current"]

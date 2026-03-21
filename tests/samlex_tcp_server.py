@@ -110,7 +110,8 @@ class SamlexModbusServer:
             host: Host address to bind to
             port: TCP port to listen on
             slave_address: Modbus slave address (unit ID)
-            scenario: Test scenario (normal, fault, low_battery, ac_disconnect, heavy_load, heavy_load_with_input, heavy_load_battery)
+            scenario: Test scenario (normal, fault, low_battery, ac_disconnect,
+                heavy_load, heavy_load_with_input, heavy_load_battery)
             identity_value: The identity register value (model-specific)
         """
         self.host = host
@@ -154,6 +155,10 @@ class SamlexModbusServer:
             else:
                 raw = int(eng_val)
 
+            # Modbus registers are uint16; convert negative values to
+            # two's complement so the datablock stores a valid 0–65535 value.
+            if raw < 0:
+                raw = raw & 0xFFFF
             regs[addr] = raw
         return regs
 
