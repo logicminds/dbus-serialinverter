@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "pymodbus"))
 
 # Constants
-DRIVER_VERSION = 0.1
+DRIVER_VERSION = 0.3
 DRIVER_SUBVERSION = ".1"
 
 # Logging (level configured below once config.ini is parsed)

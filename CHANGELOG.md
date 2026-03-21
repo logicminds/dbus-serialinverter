@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 Starting with tagged releases (`v*`), release notes are generated automatically from commits since the previous tag and published in GitHub Releases.
 
+## v0.3.1 (Mar 21, 2026)
+
+### Fix: TCP dev workflow and release packaging
+
+- Fixed race condition in TCP dev workflow: wait for server port to be listening before
+  starting the driver instead of a blind sleep (fixes race on slower devices like Pi).
+- TCP server config lookup checks local directory first for release tarball layout,
+  then falls back to source repo path.
+- Force SamlexTCP driver when port is `tcp://` regardless of TYPE config.
+- Documented Modbus TCP testing workflow in DEVELOPMENT.md.
+
+### Feature: lock-serial-device script and release tarball improvements
+
+- Added `lock-serial-device.sh` script that lists all USB serial devices for selection
+  (supports multi-adapter setups) with `--unlock` flag to remove udev rule when switching converters.
+- Prefixed tarball contents with `dbus-serialinverter/` and included README + docs.
+- Used `--skip-old-files` on extraction to preserve existing config on upgrade.
+- Added `start-tcpinverter.sh` for dev use with Modbus TCP connections.
+
 ## v0.3.0 (Mar 21, 2026)
 
 ### Feature: VE.Bus (vebus) inverter/charger support
