@@ -6,6 +6,37 @@ Starting with tagged releases (`v*`), release notes are generated automatically 
 
 ## Unreleased
 
+### Feature: VE.Bus (vebus) inverter/charger support
+
+- Added `com.victronenergy.vebus` service type for multi-mode inverter/chargers (Samlex EVO),
+  separate from the existing `com.victronenergy.pvinverter` path used by grid-tie solar inverters.
+- Publishes full VRM dashboard data: AC output, AC input (shore power), DC/battery, SOC,
+  inverter state, and charge state.
+- Registered `/Settings/SystemSetup/AcInput1` via SettingsDevice so systemcalc recognizes
+  the AC input source type (default: Grid).
+- Added `/Ac/State/AcIn1Available` and `/Ac/ActiveIn/ActiveInput` paths required for VRM
+  to render the AC Input panel correctly.
+
+### Feature: SamlexTCP driver and Modbus TCP testing infrastructure
+
+- Added `samlex_tcp.py` driver supporting `tcp://host:port` connections for network-attached
+  Samlex inverters.
+- Added `samlex_tcp_server.py` — a Modbus TCP server simulating Samlex EVO registers for
+  hardware-free testing with multiple scenarios (normal, fault, low_battery, ac_disconnect,
+  heavy_load, heavy_load_with_input, heavy_load_battery).
+- TCP server register map driven from `config.ini` (single source of truth for addresses
+  and scale factors).
+- D-Bus object paths and service names sanitized for `tcp://` port strings.
+
+### Fix: VRM dashboard widget rendering
+
+- Fixed VRM DC/AC widgets blanking by coalescing `None` values to `0` on all D-Bus paths.
+  The vebus spec requires numeric values — `None` causes VRM widgets to go blank.
+- Fixed `/State` derivation and `/VebusChargeState` translation for correct inverter state
+  display (Inverting, Bulk, Absorption, Float, etc.).
+- Fixed signed int16 handling for DC current so negative (discharging) values display correctly.
+- Fixed missing AC input power and DC power calculations in `publish_dbus()`.
+
 ### Feature: Private configuration support for Samlex EVO
 
 - Added two-file configuration system for NDA-protected register values:
