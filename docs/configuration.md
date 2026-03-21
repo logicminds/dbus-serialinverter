@@ -65,7 +65,7 @@ POSITION=1
 
 | Key | Values | Notes |
 |-----|--------|-------|
-| `TYPE` | `Solis`, `Samlex`, `Dummy`, or empty | Empty = auto-detect. Unknown values cause startup failure. |
+| `TYPE` | `Solis`, `Samlex`, `SamlexMock`, `SamlexTCP`, `Dummy`, or empty | Empty = auto-detect. Unknown values cause startup failure. |
 | `ADDRESS` | Integer | Reserved for future use. Keep at `1`. |
 | `POLL_INTERVAL` | Integer (ms) | Poll period. Typical: `500`–`2000`. |
 | `MAX_AC_POWER` | Integer > 0 (watts) | Inverter rated output. Used for D-Bus `/Ac/MaxPower` and power-limit conversions. |
