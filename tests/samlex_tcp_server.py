@@ -172,15 +172,24 @@ class SamlexModbusServer:
 
         if self.scenario == "heavy_load_with_input":
             # Shore power supplies 3800 W load + ~160 W battery charge = ~3960 W input
+            # AC output
             values["REG_AC_OUT_VOLTAGE"] = 120.0      # V
             values["REG_AC_OUT_CURRENT"] = 31.7       # A  (3800 W / 120 V)
             values["REG_AC_OUT_POWER"] = 3800.0       # W
+            # AC input (shore)
             values["REG_AC_IN_CONNECTED"] = 1         # raw: 1 = AC input normal
             values["REG_AC_IN_VOLTAGE"] = 120.0       # V
             values["REG_AC_IN_CURRENT"] = 33.0        # A  (3960 W / 120 V; shore > output)
+            # DC / battery
+            values["REG_DC_VOLTAGE"] = 26.4           # V  (24V nominal)
             values["REG_DC_CURRENT"] = 6.0            # A  positive = battery charging
+            values["REG_SOC"] = 85                    # %
+            # State
             values["REG_CHARGE_STATE"] = 2            # raw: 2 = Absorption
 
+            # Expected VRM values:
+            #   AC In:  120V, 33.0A, 3960W    AC Out: 120V, 31.7A, 3800W
+            #   DC:     26.4V, 6.0A, ~158W    SOC: 85%    State: Absorption
             logger.info("Scenario: HEAVY LOAD with Input (3800W out, 3960W in, battery charging)")
 
         elif self.scenario == "low_battery":
