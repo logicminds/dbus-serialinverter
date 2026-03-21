@@ -176,7 +176,7 @@ _SCENARIOS = {
         "REG_AC_IN_CONNECTED": 3,        # 3 = Inverting (no AC input)
         "REG_FAULT":           0,
         "REG_DC_VOLTAGE":      _raw(24.8,   "0.1"),   # sagging under load
-        "REG_DC_CURRENT":      _raw(-145.0, "0.01"),   # negative = discharging (two's complement)
+        "REG_DC_CURRENT":      _raw(-174.0, "0.01"),   # AC inverting + DC loads (two's complement)
         "REG_AC_OUT_VOLTAGE":  _raw(120.0,  "0.1"),
         "REG_AC_OUT_CURRENT":  _raw(29.2,   "0.01"),
         "REG_AC_OUT_POWER":    _raw(3500.0, "1.0"),
@@ -435,7 +435,7 @@ def test_heavy_load_battery_dc_current_is_negative():
     assert s.energy_data["dc"]["current"] < 0, (
         f"DC current should be negative (discharging), got {s.energy_data['dc']['current']}"
     )
-    assert abs(s.energy_data["dc"]["current"] - (-145.0)) < 0.1
+    assert abs(s.energy_data["dc"]["current"] - (-174.0)) < 0.1
 
 
 def test_heavy_load_battery_dc_power_is_negative():

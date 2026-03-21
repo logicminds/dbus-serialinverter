@@ -199,25 +199,33 @@ class SamlexModbusServer:
 
         elif self.scenario == "heavy_load_battery":
             # No shore power — inverter runs entirely from battery at near max output
+            # plus DC loads (lights, water pump, fridge fan, etc.)
+            #
+            # Power budget:
+            #   AC load:        3500 W / ~85% inverter eff = ~4118 W from DC
+            #   DC loads:       ~200 W (12V/24V lights, pumps, fans)
+            #   Total DC draw:  ~4318 W at 24.8 V = ~174 A
+            #
             # AC output
             values["REG_AC_OUT_VOLTAGE"] = 120.0      # V
-            values["REG_AC_OUT_CURRENT"] = 29.2        # A  (3500 W / 120 V)
-            values["REG_AC_OUT_POWER"] = 3500.0        # W
+            values["REG_AC_OUT_CURRENT"] = 29.2       # A  (3500 W / 120 V)
+            values["REG_AC_OUT_POWER"] = 3500.0       # W
             # AC input (disconnected)
-            values["REG_AC_IN_CONNECTED"] = 3          # raw: 3 = Inverting
-            values["REG_AC_IN_VOLTAGE"] = 0.0          # V
-            values["REG_AC_IN_CURRENT"] = 0.0          # A
-            # DC / battery (heavy discharge)
-            values["REG_DC_VOLTAGE"] = 24.8            # V  (sagging under load)
-            values["REG_DC_CURRENT"] = -145.0          # A  negative = discharging
-            values["REG_SOC"] = 62                     # %
+            values["REG_AC_IN_CONNECTED"] = 3         # raw: 3 = Inverting
+            values["REG_AC_IN_VOLTAGE"] = 0.0         # V
+            values["REG_AC_IN_CURRENT"] = 0.0         # A
+            # DC / battery (heavy discharge — AC inverting + DC loads)
+            values["REG_DC_VOLTAGE"] = 24.8           # V  (sagging under load)
+            values["REG_DC_CURRENT"] = -174.0         # A  negative = discharging
+            values["REG_SOC"] = 62                    # %
             # State
-            values["REG_CHARGE_STATE"] = 9             # raw: 9 = Inverting
+            values["REG_CHARGE_STATE"] = 9            # raw: 9 = Inverting
 
             # Expected VRM values:
             #   AC In:  disconnected           AC Out: 120V, 29.2A, 3500W
-            #   DC:     24.8V, -145.0A, ~-3596W   SOC: 62%   State: Inverting
-            logger.info("Scenario: HEAVY LOAD on Battery (3500W out, no AC in, battery discharging)")
+            #   DC:     24.8V, -174.0A, ~-4315W   SOC: 62%   State: Inverting
+            #   DC System (systemcalc): ~200W  (total DC - inverter DC draw)
+            logger.info("Scenario: HEAVY LOAD on Battery (3500W AC + 200W DC, no AC in)")
 
         elif self.scenario == "low_battery":
             values["REG_SOC"] = 15
