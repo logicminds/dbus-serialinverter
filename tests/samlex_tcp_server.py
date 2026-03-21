@@ -84,10 +84,13 @@ def _load_samlex_config() -> configparser.ConfigParser:
     that match the test server, so the register map seen here is identical
     to the one the driver uses when running against the TCP server.
     """
-    driver_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "etc", "dbus-serialinverter")
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    driver_dir = os.path.join(script_dir, "..", "etc", "dbus-serialinverter")
     cfg = configparser.ConfigParser()
+    # Release tarball: config alongside this script; source repo: in driver dir
     cfg.read(
         [
+            os.path.join(script_dir, "config.ini.samlexTCP"),
             os.path.join(driver_dir, "config.ini.samlexTCP"),
         ]
     )
