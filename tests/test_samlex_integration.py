@@ -22,8 +22,7 @@ Usage:
 import sys
 import os
 import argparse
-import time
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 
 # Add paths for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "etc", "dbus-serialinverter"))
@@ -40,8 +39,7 @@ for mod in ["dbus", "gi", "gi.repository", "gi.repository.GLib"]:
 from samlex_mock_client import MockModbusClient, create_evo_4024_registers, SamlexScenario
 
 # Import driver modules
-from samlex import Samlex, REQUIRED_SAMLEX_REGISTERS
-from inverter import Inverter
+from samlex import Samlex
 import utils
 
 # Setup logging
@@ -169,7 +167,7 @@ class SamlexIntegrationTest:
         else:
             logger.info(f"Using real device on port: {self.device_port}")
 
-        logger.info(f"Samlex driver ready")
+        logger.info("Samlex driver ready")
 
     def teardown(self):
         """Clean up test environment."""

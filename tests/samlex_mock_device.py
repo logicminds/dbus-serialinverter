@@ -29,15 +29,12 @@ import pty
 import threading
 import time
 import struct
-from collections import defaultdict
 
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "etc", "dbus-serialinverter"))
 
 # Use the embedded pymodbus
-from pymodbus.server import StartSerialServer
 from pymodbus.datastore import ModbusSequentialDataBlock, ModbusSlaveContext, ModbusServerContext
-from pymodbus.transaction import ModbusRtuFramer
 
 
 class SamlexMockDevice:
@@ -138,7 +135,7 @@ class SamlexMockDevice:
     def _run_server(self):
         """Run the Modbus server (called in separate thread)."""
         try:
-            context = self._make_server_context()
+            self._make_server_context()
 
             # Start serial server on the master FD
             # Note: This is a simplified approach - pymodbus serial server

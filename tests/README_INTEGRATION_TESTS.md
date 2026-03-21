@@ -42,7 +42,8 @@ python tests/test_samlex_integration.py --real-device /dev/ttyUSB0
 
 ```bash
 # For testing with TCP server:
-cp etc/dbus-serialinverter/config.ini.samlexTCP etc/dbus-serialinverter/config.ini.private
+cp etc/dbus-serialinverter/config.ini.private /data/etc/dbus-serialinverter/config.ini.private.bak
+cp etc/dbus-serialinverter/config.ini.samlexTCP /data/etc/dbus-serialinverter/config.ini.private
 
 # Start TCP server
 python tests/samlex_tcp_server.py --port 5020

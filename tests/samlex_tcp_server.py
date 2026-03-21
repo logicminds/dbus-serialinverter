@@ -85,10 +85,11 @@ def _load_samlex_config() -> configparser.ConfigParser:
     """
     driver_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "etc", "dbus-serialinverter")
     cfg = configparser.ConfigParser()
-    cfg.read([
-        os.path.join(driver_dir, "config.ini"),
-        os.path.join(driver_dir, "config.ini.private"),
-    ])
+    cfg.read(
+        [
+            os.path.join(driver_dir, "config.ini.samlexTCP"),
+        ]
+    )
     return cfg
 
 
@@ -361,7 +362,7 @@ Examples:
     print(f"Scenario: {args.scenario}")
     print("=" * 70)
     print()
-    print(f"To connect the driver, use:")
+    print("To connect the driver, use:")
     print(f"  python dbus-serialinverter.py tcp://{args.host}:{args.port}")
     print()
     print("Press Ctrl+C to stop...")

@@ -20,7 +20,6 @@ Usage:
     samlex.client = mock_client
 """
 
-import unittest.mock as mock
 from typing import Dict, Optional, Set, List, Any
 
 

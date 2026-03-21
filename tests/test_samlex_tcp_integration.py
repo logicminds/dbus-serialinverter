@@ -19,7 +19,6 @@ import sys
 import os
 import argparse
 import time
-import threading
 from typing import Optional, Dict, Any
 
 # Add paths for imports
@@ -46,7 +45,6 @@ for mod in ["dbus", "gi", "gi.repository", "gi.repository.GLib"]:
 
 # Import driver modules
 from samlex_tcp import SamlexTCP
-from samlex import REQUIRED_SAMLEX_REGISTERS
 import utils
 
 logging.basicConfig(

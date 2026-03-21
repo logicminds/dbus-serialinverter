@@ -136,8 +136,8 @@ def test_multiple_polls_generate_different_values():
 
     # Get initial values
     m.refresh_data()
-    power1 = m.energy_data["L1"]["ac_power"]
-    soc1 = m.energy_data["dc"]["soc"]
+    m.energy_data["L1"]["ac_power"]
+    m.energy_data["dc"]["soc"]
 
     # Poll again
     m.refresh_data()
