@@ -281,12 +281,15 @@ class SamlexTCPIntegrationTest:
 
         voltage = self.samlex.energy_data["ac_in"]["voltage"]
         current = self.samlex.energy_data["ac_in"]["current"]
+        power = self.samlex.energy_data["ac_in"]["power"]
         connected = self.samlex.energy_data["ac_in"]["connected"]
 
-        logger.info(f"AC Input: {voltage}V, {current}A, connected={connected}")
+        logger.info(f"AC Input: {voltage}V, {current}A, {power}W, connected={connected}")
 
         assert abs(voltage - 120.0) < 0.1
         assert connected == 1
+        assert power is not None, "ac_in power must not be None (dashboard won't show AC input)"
+        assert power > 0, f"Expected positive AC input power, got {power}"
 
     def test_status_mapping(self):
         """Test status mapping."""
@@ -381,7 +384,7 @@ Examples:
     )
     parser.add_argument(
         "--scenario",
-        choices=["normal", "fault", "low_battery", "ac_disconnect", "heavy_load"],
+        choices=["normal", "fault", "low_battery", "ac_disconnect", "heavy_load", "heavy_load_with_input"],
         default="normal",
         help="Test scenario (default: normal)"
     )

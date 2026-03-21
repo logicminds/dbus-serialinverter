@@ -160,6 +160,29 @@ def test_ac_in_voltage_scaled():
     assert s.energy_data["ac_in"]["voltage"] == 120.0
 
 
+def test_ac_in_power_derived_from_voltage_and_current():
+    """ac_in power must be computed as voltage × current (not left None)."""
+    # 1200 raw × 0.1 = 120.0 V; 3300 raw × 0.01 = 33.0 A → 3960 W
+    s = _make_samlex(_make_client(address_regs={
+        _REG_MAP["REG_AC_IN_VOLTAGE"]:  [1200],
+        _REG_MAP["REG_AC_IN_CURRENT"]:  [3300],
+    }))
+    s.read_status_data()
+    assert s.energy_data["ac_in"]["power"] == 3960.0, (
+        f"Expected 3960.0 W, got {s.energy_data['ac_in']['power']}"
+    )
+
+
+def test_ac_in_power_is_none_when_disconnected():
+    """When AC input is disconnected (0 V, 0 A), power should be 0, not None."""
+    s = _make_samlex(_make_client(address_regs={
+        _REG_MAP["REG_AC_IN_VOLTAGE"]: [0],
+        _REG_MAP["REG_AC_IN_CURRENT"]: [0],
+    }))
+    s.read_status_data()
+    assert s.energy_data["ac_in"]["power"] == 0.0
+
+
 # ── Status / fault mapping ────────────────────────────────────────────────────
 
 def test_status_running_when_fault_zero_and_power_positive():
