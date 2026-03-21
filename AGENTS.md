@@ -15,7 +15,7 @@ Every commit must leave the codebase in a passing state: lint clean, tests green
 
 ## Code Quality Standards
 
-- Target Python 3.6+ compatibility (VenusOS constraint). Use `dataclasses` but avoid f-strings with `=` debug specifier, walrus operator, or other 3.8+ features unless the file already uses them.
+- Target Python 3.8+ compatibility (VenusOS constraint). Use `dataclasses`, f-strings with `=` debug specifier, walrus operator, and other 3.8+ features freely.
 - Max line length: 120 characters (enforced by ruff).
 - Follow existing code style. Do not add type annotations, docstrings, or comments to code you did not change.
 - Do not over-engineer. Fix what is asked. Do not refactor adjacent code, add abstractions, or introduce patterns that do not already exist in the codebase.

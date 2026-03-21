@@ -23,9 +23,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          artifact="dbus-serialinverter-${GITHUB_REF_NAME}.tar.gz"
-          tar -czf "dist/${artifact}" conf etc
-          sha256sum "dist/${artifact}" > "dist/${artifact}.sha256"
+
+          # Write the tag version into VERSION so the tarball is self-describing
+          echo "${GITHUB_REF_NAME#v}" > VERSION
+
+          tar -czf dist/dbus-serialinverter.tar.gz VERSION conf etc tests/samlex_tcp_server.py
+          sha256sum dist/dbus-serialinverter.tar.gz > dist/dbus-serialinverter.tar.gz.sha256
 
       - name: Generate changelog and release notes
         run: |
@@ -64,7 +67,7 @@ jobs:
             echo "# Changelog"
             echo
             cat dist/release-notes.md
-          } > "dist/CHANGELOG-${tag}.md"
+          } > dist/CHANGELOG.md
 
       - name: Create or update GitHub Release
         env:
@@ -73,18 +76,19 @@ jobs:
           set -euo pipefail
 
           tag="${GITHUB_REF_NAME}"
-          artifact="dist/dbus-serialinverter-${tag}.tar.gz"
-          checksum="dist/dbus-serialinverter-${tag}.tar.gz.sha256"
-          changelog="dist/CHANGELOG-${tag}.md"
 
           if gh release view "${tag}" >/dev/null 2>&1; then
             gh release edit "${tag}" --title "${tag}" --notes-file dist/release-notes.md
-            gh release upload "${tag}" "${artifact}" "${checksum}" "${changelog}" --clobber
+            gh release upload "${tag}" \
+              dist/dbus-serialinverter.tar.gz \
+              dist/dbus-serialinverter.tar.gz.sha256 \
+              dist/CHANGELOG.md \
+              --clobber
           else
             gh release create "${tag}" \
-              "${artifact}" \
-              "${checksum}" \
-              "${changelog}" \
+              dist/dbus-serialinverter.tar.gz \
+              dist/dbus-serialinverter.tar.gz.sha256 \
+              dist/CHANGELOG.md \
               --title "${tag}" \
               --notes-file dist/release-notes.md
           fi
