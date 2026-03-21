@@ -2,8 +2,7 @@
 
 ## Prerequisites
 
-- VenusOS **Large** (Python 3.8+ required for `dataclasses`)
-  - Without it you'll get: `ModuleNotFoundError: No module named 'dataclasses'`
+- VenusOS **Large** (Python 3.8+ required)
 - A USB-to-Serial converter (e.g. [Waveshare USB to RS485](https://www.waveshare.com/usb-to-rs485.htm))
 
 ## Steps
