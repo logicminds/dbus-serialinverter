@@ -201,18 +201,7 @@ class Samlex(ModbusInverter):
                 ("REG_AC_OUT_CURRENT", "SCALE_AC_OUT_CURRENT", "L1", "ac_current", 2, True),
                 ("REG_AC_OUT_POWER",   "SCALE_AC_OUT_POWER",   "L1", "ac_power",   0, True),
             ])
-            # Register 274 is signed: positive=inverting, negative=charging.
-            # When charging, the AC output bus carries both load current and charger
-            # input current. I_out (reg 270) measures total bus current, so:
-            #   load_power = (V_out × I_out) + ac_power_signed
-            # When inverting, ac_power is already positive and correct.
-            ac_p = self.energy_data["L1"]["ac_power"]
-            if ac_p < 0:
-                v = self.energy_data["L1"]["ac_voltage"]
-                i = abs(self.energy_data["L1"]["ac_current"])
-                bus_power = round(v * i, 0) if v and i else 0
-                self.energy_data["L1"]["ac_power"] = max(0, bus_power + ac_p)
-            self.energy_data["overall"]["ac_power"] = self.energy_data["L1"]["ac_power"]
+            # Load power is computed after ac_in is read (see below).
         else:
             error = True
 
@@ -251,6 +240,21 @@ class Samlex(ModbusInverter):
             self.energy_data["ac_in"]["connected"] = 1 if (ac_in["REG_AC_IN_CONNECTED"] & 0x200) == 0 else 0
         else:
             error = True
+
+        # Compute AC load power (requires both ac_out and ac_in reads above).
+        # reg274 sign: positive=inverting (battery→loads), negative=charging (grid→battery).
+        # When inverting: reg274 is the load power directly.
+        # When charging: the EVO uses a transfer switch — loads draw from AC input directly,
+        # bypassing the output current sensor. Load power = grid_VA - charger_power.
+        #   load_power = (V_in × I_in) + reg274_signed   (reg274 is negative, so this subtracts)
+        if ac_out:
+            ac_p = self.energy_data["L1"]["ac_power"]
+            if ac_p < 0:
+                gv = self.energy_data["ac_in"]["voltage"]
+                gi = self.energy_data["ac_in"]["current"]
+                grid_va = round(gv * gi, 0) if gv is not None and gi is not None else 0
+                self.energy_data["L1"]["ac_power"] = max(0, grid_va + ac_p)
+            self.energy_data["overall"]["ac_power"] = self.energy_data["L1"]["ac_power"]
 
         # Fault / status (batch)
         status_regs = self._read_group(["REG_FAULT", "REG_CHARGE_STATE"])
