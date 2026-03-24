@@ -201,6 +201,17 @@ class Samlex(ModbusInverter):
                 ("REG_AC_OUT_CURRENT", "SCALE_AC_OUT_CURRENT", "L1", "ac_current", 2, True),
                 ("REG_AC_OUT_POWER",   "SCALE_AC_OUT_POWER",   "L1", "ac_power",   0, True),
             ])
+            # Register 274 is signed: positive=inverting, negative=charging.
+            # When charging, the AC output bus carries both load current and charger
+            # input current. I_out (reg 270) measures total bus current, so:
+            #   load_power = (V_out × I_out) + ac_power_signed
+            # When inverting, ac_power is already positive and correct.
+            ac_p = self.energy_data["L1"]["ac_power"]
+            if ac_p < 0:
+                v = self.energy_data["L1"]["ac_voltage"]
+                i = abs(self.energy_data["L1"]["ac_current"])
+                bus_power = round(v * i, 0) if v and i else 0
+                self.energy_data["L1"]["ac_power"] = max(0, bus_power + ac_p)
             self.energy_data["overall"]["ac_power"] = self.energy_data["L1"]["ac_power"]
         else:
             error = True
