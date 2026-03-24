@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Quick cable and communication test for Samlex EVO.
 
+Uses Modbus Function Code 03 (Read Holding Registers) starting at address 100.
+
 Usage:
     python test_cable.py /dev/ttyUSB0
     python test_cable.py /dev/ttyUSB0 --baud 19200
@@ -28,7 +30,7 @@ for _key in list(sys.modules):
 from pymodbus.client import ModbusSerialClient
 
 
-def test_cable(port, baudrate, slave):
+def test_cable(port, baudrate, slave, count=50):
     print(f"=== Samlex EVO Cable Test ===")
     print(f"Port:     {port}")
     print(f"Baudrate: {baudrate}")
@@ -54,9 +56,11 @@ def test_cable(port, baudrate, slave):
         print(f"FAILED — {e}")
         return False
 
-    # Step 2: Try identity register (address 0)
-    print("[2] Reading identity register (addr 0)...", end=" ")
-    resp = client.read_input_registers(address=0, count=1, slave=slave)
+    BASE_ADDR = 100
+
+    # Step 2: Try identity register (FC03, address 100)
+    print(f"[2] Reading identity register (FC03, addr {BASE_ADDR})...", end=" ")
+    resp = client.read_holding_registers(address=BASE_ADDR, count=1, slave=slave)
     if hasattr(resp, "isError") and not resp.isError():
         val = resp.registers[0]
         print(f"OK — value: {val}")
@@ -82,7 +86,7 @@ def test_cable(port, baudrate, slave):
                 continue
             c2 = ModbusSerialClient(method="rtu", port=port, baudrate=try_baud, stopbits=1, parity="N", bytesize=8, timeout=1)
             c2.connect()
-            r2 = c2.read_input_registers(address=0, count=1, slave=slave)
+            r2 = c2.read_holding_registers(address=BASE_ADDR, count=1, slave=slave)
             if hasattr(r2, "isError") and not r2.isError():
                 print(f"RESPONDED at {try_baud} baud!")
                 print(f"    Update config.ini.private or re-run with --baud {try_baud}")
@@ -101,7 +105,7 @@ def test_cable(port, baudrate, slave):
         for try_slave in range(1, 11):
             if try_slave == slave:
                 continue
-            r3 = client.read_input_registers(address=0, count=1, slave=try_slave)
+            r3 = client.read_holding_registers(address=BASE_ADDR, count=1, slave=try_slave)
             if hasattr(r3, "isError") and not r3.isError():
                 print(f"RESPONDED at slave {try_slave}!")
                 print(f"    Update ADDRESS in config.ini.private to {try_slave}")
@@ -112,14 +116,15 @@ def test_cable(port, baudrate, slave):
         client.close()
         return False
 
-    # Step 3: Read a batch of registers
-    print("[3] Reading registers 0-14 (full input register range)...", end=" ")
-    resp = client.read_input_registers(address=0, count=15, slave=slave)
+    # Step 3: Read a batch of registers (FC03, addresses BASE_ADDR to BASE_ADDR+count-1)
+    print(f"[3] Reading holding registers {BASE_ADDR}–{BASE_ADDR + count - 1} (FC03, count={count})...", end=" ")
+    resp = client.read_holding_registers(address=BASE_ADDR, count=count, slave=slave)
     if hasattr(resp, "isError") and not resp.isError():
         print("OK")
         print()
         print("    Addr  Raw      Description")
         print("    ----  -------  -----------")
+        # Keys are array offsets (0-based); absolute address = BASE_ADDR + offset
         labels = {
             0: "Identity",
             1: "Working Status (0=PwrSave, 1=AC normal, 2=AC abnormal, 3=Inverting, 4=Fault)",
@@ -135,42 +140,51 @@ def test_cable(port, baudrate, slave):
         }
         for i, val in enumerate(resp.registers):
             label = labels.get(i, "")
-            print(f"    {i:4d}  {val:7d}  {label}")
+            print(f"    {BASE_ADDR + i:4d}  {val:7d}  {label}")
     else:
         print(f"FAILED — {resp}")
         print("    Single register worked but batch read failed.")
         client.close()
         return False
 
-    # Step 4: Sanity check values
+    # Step 4: Sanity check values (only when enough registers were read)
+    # regs[n] = holding register at address BASE_ADDR+n
     print()
     regs = resp.registers
     print("[4] Sanity checks:")
 
-    dc_v = regs[14] * 0.1
-    print(f"    DC Voltage:  {dc_v:.1f} V", end="")
-    if 10 < dc_v < 60:
-        print(" ✓")
+    if len(regs) > 14:
+        dc_v = regs[14] * 0.1  # addr 114
+        print(f"    DC Voltage:  {dc_v:.1f} V", end="")
+        if 10 < dc_v < 60:
+            print(" ✓")
+        else:
+            print(f" ✗ (unusual — expected 10-60V)")
     else:
-        print(f" ✗ (unusual — expected 10-60V)")
+        print("    DC Voltage:  (skipped — need count > 14)")
 
-    ac_out_v = regs[5] * 0.1
-    print(f"    AC Out:      {ac_out_v:.1f} V", end="")
-    if 100 < ac_out_v < 140:
-        print(" ✓")
+    if len(regs) > 5:
+        ac_out_v = regs[5] * 0.1  # addr 105
+        print(f"    AC Out:      {ac_out_v:.1f} V", end="")
+        if 100 < ac_out_v < 140:
+            print(" ✓")
+        else:
+            print(f" ({'off/standby' if ac_out_v == 0 else 'unusual'})")
     else:
-        print(f" ({'off/standby' if ac_out_v == 0 else 'unusual'})")
+        print("    AC Out:      (skipped — need count > 5)")
 
-    status = regs[1]
-    status_names = {0: "Power Save", 1: "AC Normal", 2: "AC Abnormal", 3: "Inverting", 4: "Fault"}
-    print(f"    Status:      {status} ({status_names.get(status, 'unknown')})")
+    if len(regs) > 1:
+        status = regs[1]  # addr 101
+        status_names = {0: "Power Save", 1: "AC Normal", 2: "AC Abnormal", 3: "Inverting", 4: "Fault"}
+        print(f"    Status:      {status} ({status_names.get(status, 'unknown')})")
 
-    fault = regs[2]
-    print(f"    Fault Code:  {fault}", end="")
-    if fault == 0:
-        print(" ✓ (no fault)")
-    else:
-        print(f" ✗ (active fault!)")
+    if len(regs) > 2:
+        fault = regs[2]  # addr 102
+        print(f"    Fault Code:  {fault}", end="")
+        if fault == 0:
+            print(" ✓ (no fault)")
+        else:
+            print(f" ✗ (active fault!)")
 
     print()
     print("=== Cable test PASSED — communication is working ===")
@@ -226,8 +240,9 @@ if __name__ == "__main__":
     parser.add_argument("port", nargs="?", default=None, help="Serial port (e.g. /dev/ttyUSB0). Omit to select interactively.")
     parser.add_argument("--baud", type=int, default=9600, help="Baud rate (default: 9600)")
     parser.add_argument("--slave", type=int, default=1, help="Modbus slave address (default: 1)")
+    parser.add_argument("--count", type=int, default=50, help="Number of holding registers to read from address 100 (default: 50)")
     args = parser.parse_args()
 
     port = args.port if args.port else select_port()
-    ok = test_cable(port, args.baud, args.slave)
+    ok = test_cable(port, args.baud, args.slave, args.count)
     sys.exit(0 if ok else 1)

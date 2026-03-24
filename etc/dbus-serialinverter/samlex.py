@@ -4,30 +4,29 @@ from modbus_inverter import ModbusInverter
 from utils import logger
 import utils
 
-# Samlex Charger State (raw) → Victron /State (vebus operating state)
-# Derived when AC is connected.  Fault and AC-disconnected are handled first.
-# Victron: 4=Absorption, 5=Float, 6=Storage, 7=Equalize, 8=Passthru, 9=Inverting
+# Samlex EVO charge stage (reg 286, 0x11EH) → Victron /State (vebus operating state)
+# Derived when AC is connected. Fault and AC-disconnected are handled first.
+# Source: Samlex EVO Modbus Protocol Registry Rev E, Feb 2022
+# Victron /State: 3=Bulk, 4=Absorption, 5=Float, 7=Equalize, 8=Passthru, 9=Inverting
 _VEBUS_STATE_FROM_CHARGE = {
-    0: 8,  # Standby (no charging) → Passthru
-    1: 7,  # Equalization          → Equalize
-    2: 4,  # Absorption            → Absorption
-    3: 5,  # Float                 → Float
-    4: 6,  # Storage               → Storage
-    9: 9,  # Inverting             → Inverting
+    0: 8,  # Standby      → Passthru
+    1: 3,  # Bulk current → Bulk
+    2: 4,  # Absorb       → Absorption
+    3: 7,  # Equalization → Equalize
+    4: 5,  # Float        → Float
+    5: 8,  # Charger stop → Passthru
 }
 
-# Samlex EVO Charger State register → Victron /VebusChargeState
-# Samlex (reg 8): 0=Standby, 1=Equalization, 2=Absorption, 3=Float, 4=Storage, 9=Inverting
-# Victron:        0=Idle,    1=Bulk,          2=Absorption, 3=Float, 4=Storage, 5=Equalise, 9=Inverting
-# Note: Samlex has no distinct Bulk stage; passing raw values would mismap
-# Equalization (Samlex 1) as Bulk (Victron 1).
+# Samlex EVO charge stage (reg 286) → Victron /VebusChargeState
+# Samlex: 0=standby, 1=bulk current, 2=absorb voltage, 3=equalization, 4=floating, 5=charger stop
+# Victron: 0=Idle, 1=Bulk, 2=Absorption, 3=Float, 5=Equalise
 _CHARGE_STATE_MAP = {
     0: 0,  # Standby      → Idle
-    1: 5,  # Equalization → Equalise
-    2: 2,  # Absorption   → Absorption
-    3: 3,  # Float        → Float
-    4: 4,  # Storage      → Storage
-    9: 9,  # Inverting    → Inverting
+    1: 1,  # Bulk current → Bulk
+    2: 2,  # Absorb       → Absorption
+    3: 5,  # Equalization → Equalise
+    4: 3,  # Float        → Float
+    5: 0,  # Charger stop → Idle
 }
 
 # All keys that must be present and numeric in [SAMLEX_REGISTERS] before the
@@ -51,7 +50,6 @@ REQUIRED_SAMLEX_REGISTERS = (
     "REG_FAULT",
     "REG_CHARGE_STATE",
     "REG_IDENTITY",
-    "IDENTITY_VALUE",
 )
 
 # Optional registers — read if configured, otherwise skipped.
@@ -155,13 +153,15 @@ class Samlex(ModbusInverter):
         if not self._registers_configured():
             logger.debug("Samlex: register map not configured, skipping")
             return False
-        # Step 2: confirm hardware identity via a single register read
+        # Step 2: confirm presence by reading the operating mode register (0x11CH, addr 284).
+        # Samlex EVO has no model identity register; valid operating modes are 0-3:
+        # 0=standby/fault, 1=inverter, 2=charger, 3=power saving.
         try:
             ok, regs = self._read_batch(self._reg("REG_IDENTITY"), 1)
-            if ok and regs[0] == self._reg("IDENTITY_VALUE"):
-                logger.debug("Samlex: identity confirmed (register value %s)", regs[0])
+            if ok and regs[0] in (0, 1, 2, 3):
+                logger.debug("Samlex: identity confirmed (operating mode %s)", regs[0])
                 return True
-            logger.debug("Samlex: identity mismatch or read failed")
+            logger.debug("Samlex: unexpected operating mode %s or read failed", regs[0] if ok else "N/A")
             return False
         except (IOError, ValueError) as exc:
             logger.debug("test_connection() failed: %s", exc)
@@ -235,9 +235,9 @@ class Samlex(ModbusInverter):
             v = self.energy_data["ac_in"]["voltage"]
             i = self.energy_data["ac_in"]["current"]
             self.energy_data["ac_in"]["power"] = round(v * i, 0) if v is not None and i is not None else None
-            # Working status: 0=Power saving, 1=AC input normal, 2=AC input abnormal, 3=Inverting, 4=Fault
-            # "Connected" means AC input is present and normal (value == 1)
-            self.energy_data["ac_in"]["connected"] = 1 if ac_in["REG_AC_IN_CONNECTED"] == 1 else 0
+            # Grid status is a bit field (0x103H). Bit 9 = "no voltage" (not connected).
+            # Connected when bit 9 is clear: (value & 0x200) == 0
+            self.energy_data["ac_in"]["connected"] = 1 if (ac_in["REG_AC_IN_CONNECTED"] & 0x200) == 0 else 0
         else:
             error = True
 
