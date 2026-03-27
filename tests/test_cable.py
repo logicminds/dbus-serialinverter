@@ -154,7 +154,7 @@ def test_cable(port, baudrate, slave, count=50):
     print("[4] Sanity checks:")
 
     if len(regs) > 14:
-        dc_v = regs[14] * 0.1  # addr 114
+        dc_v = regs[14] * 0.1
         print(f"    DC Voltage:  {dc_v:.1f} V", end="")
         if 10 < dc_v < 60:
             print(" ✓")
@@ -164,7 +164,7 @@ def test_cable(port, baudrate, slave, count=50):
         print("    DC Voltage:  (skipped — need count > 14)")
 
     if len(regs) > 5:
-        ac_out_v = regs[5] * 0.1  # addr 105
+        ac_out_v = regs[5] * 0.1
         print(f"    AC Out:      {ac_out_v:.1f} V", end="")
         if 100 < ac_out_v < 140:
             print(" ✓")
@@ -174,12 +174,12 @@ def test_cable(port, baudrate, slave, count=50):
         print("    AC Out:      (skipped — need count > 5)")
 
     if len(regs) > 1:
-        status = regs[1]  # addr 101
+        status = regs[1]
         status_names = {0: "Power Save", 1: "AC Normal", 2: "AC Abnormal", 3: "Inverting", 4: "Fault"}
         print(f"    Status:      {status} ({status_names.get(status, 'unknown')})")
 
     if len(regs) > 2:
-        fault = regs[2]  # addr 102
+        fault = regs[2]
         print(f"    Fault Code:  {fault}", end="")
         if fault == 0:
             print(" ✓ (no fault)")

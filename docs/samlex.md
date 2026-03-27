@@ -176,88 +176,90 @@ Add to `config.ini.private` with actual values from your Modbus Protocol Guide:
 ```ini
 [SAMLEX_REGISTERS]
 # AC output ── register addresses are decimal integers; scales are float multipliers
-REG_AC_OUT_VOLTAGE    = 5     # uint16, AC volts out — e.g. raw 1200 × 0.1 = 120.0 V
-REG_AC_OUT_CURRENT    = 7     # int16, AC amps out  — e.g. raw 150  × 0.1 = 15.0 A
-REG_AC_OUT_POWER      = 9     # int16, AC watts out — e.g. raw 600  × 1.0 = 600 W
-SCALE_AC_OUT_VOLTAGE  = 0.1   # float, e.g. 0.1 or 0.01
-SCALE_AC_OUT_CURRENT  = 0.1   # float, e.g. 0.1 or 0.01
-SCALE_AC_OUT_POWER    = 1.0   # float, usually 1.0 (already in watts)
+REG_AC_OUT_VOLTAGE    = <from guide>   # uint16, AC volts out
+REG_AC_OUT_CURRENT    = <from guide>   # int16, AC amps out
+REG_AC_OUT_POWER      = <from guide>   # int16, AC watts out
+SCALE_AC_OUT_VOLTAGE  = <from guide>   # float, e.g. 0.1 or 0.01
+SCALE_AC_OUT_CURRENT  = <from guide>   # float, e.g. 0.1 or 0.01
+SCALE_AC_OUT_POWER    = <from guide>   # float, usually 1.0 (already in watts)
 
 # DC / battery
-REG_DC_VOLTAGE        = 1     # uint16, battery volts    — e.g. raw 264 × 0.1 = 26.4 V
-REG_DC_CURRENT        = 2     # int16,  battery amps (+charge/-discharge)
-REG_SOC               = 4     # uint16, state of charge 0-100 % (no scaling)
-SCALE_DC_VOLTAGE      = 0.1   # float, e.g. 0.1
-SCALE_DC_CURRENT      = 0.1   # float, e.g. 0.1 (sign handled in code)
+REG_DC_VOLTAGE        = <from guide>   # uint16, bus/battery volts
+REG_DC_CURRENT        = <from guide>   # int16, charger amps (+charge/-discharge)
+REG_SOC               = <from guide>   # uint16, state of charge 0-100 % (no scaling)
+SCALE_DC_VOLTAGE      = <from guide>   # float, e.g. 0.1
+SCALE_DC_CURRENT      = <from guide>   # float, e.g. 0.1 (sign handled in code)
 
 # AC input / shore power
-REG_AC_IN_VOLTAGE     = 10    # uint16, grid/gen volts  — e.g. raw 120 × 1.0 = 120 V
-REG_AC_IN_CURRENT     = 11    # int16, grid/gen amps   — e.g. raw 30  × 0.1 = 3.0 A
-REG_AC_IN_CONNECTED   = 1     # uint16, working status: 0=Power saving, 1=AC in normal, 2=AC in abnormal, 3=Inverting, 4=Fault
-SCALE_AC_IN_VOLTAGE   = 1.0   # float, e.g. 1.0 or 0.1
-SCALE_AC_IN_CURRENT   = 0.1   # float, e.g. 0.1 or 0.01
+REG_AC_IN_VOLTAGE     = <from guide>   # uint16, grid/gen volts
+REG_AC_IN_CURRENT     = <from guide>   # int16, grid/gen amps
+REG_AC_IN_CONNECTED   = <from guide>   # uint16, working status bit field
+SCALE_AC_IN_VOLTAGE   = <from guide>   # float, e.g. 1.0 or 0.1
+SCALE_AC_IN_CURRENT   = <from guide>   # float, e.g. 0.1 or 0.01
 
 # Status / fault
-REG_FAULT             = 2     # uint16, fault/warn code (0 = no fault)
-REG_CHARGE_STATE      = 8     # uint16, charger state code → published to /VebusChargeState
+REG_FAULT             = <from guide>   # uint16, fault/warn code (0 = no fault)
+REG_CHARGE_STATE      = <from guide>   # uint16, charger state code → published to /VebusChargeState
 
 # Identity — read by test_connection() to confirm a Samlex EVO is on this port
-REG_IDENTITY          = 0     # uint16, register 0 holds device model ID
-IDENTITY_VALUE        = 8722  # integer, 0x2212 = EVO-2212 (decimal 8722), differs per model
+REG_IDENTITY          = <from guide>   # uint16, register holding device model ID
+IDENTITY_VALUE        = <from guide>   # integer, expected identity value — differs per EVO model
 ```
 
-**Important:** The example values above are illustrative only. Use the actual register addresses and scale factors from your Samlex Modbus Protocol Guide.
+**Note:** Register addresses and scale factors are obtained from the Samlex EVO Modbus Communication Protocol Guide. See [Getting the Register Map](#getting-the-register-map).
 
 ---
 
 ## Register Map Reference
 
-This table describes every key the driver reads from `[SAMLEX_REGISTERS]`. Register addresses are **decimal integers** (convert hex from the Modbus guide: `0x0005` → `5`). Scale factors are **float multipliers** applied to the raw uint16 register value before the result is stored or published.
+This table describes every key the driver reads from `[SAMLEX_REGISTERS]`. Register addresses are **decimal integers** (convert hex from the Modbus guide). Scale factors are **float multipliers** applied to the raw uint16 register value before the result is stored or published.
+
+> Register addresses are protected by Samlex NDA. Fill in values from your copy of the Samlex EVO Modbus Communication Protocol Guide. See [Getting the Register Map](#getting-the-register-map).
 
 ### AC Output
 
-| Key | Type | Description | Example |
-|-----|------|-------------|---------|
-| `REG_AC_OUT_VOLTAGE` | Register address | AC voltage on the inverter output (load side) | `0x000B` → `11` |
-| `SCALE_AC_OUT_VOLTAGE` | Scale factor | Multiplier to convert raw → volts | `0.1` (raw 1200 → 120.0 V) |
-| `REG_AC_OUT_CURRENT` | Register address | AC current drawn by the load, in amps | `0x000C` → `12` |
-| `SCALE_AC_OUT_CURRENT` | Scale factor | Multiplier to convert raw → amps | `0.1` (raw 150 → 15.0 A) |
-| `REG_AC_OUT_POWER` | Register address | Total AC watts delivered to the load | `0x0005` → `5` |
-| `SCALE_AC_OUT_POWER` | Scale factor | Multiplier to convert raw → watts | `1.0` (raw already in watts) |
+| Key | Type | Description |
+|-----|------|-------------|
+| `REG_AC_OUT_VOLTAGE` | Register address | AC voltage on the inverter output (load side) |
+| `SCALE_AC_OUT_VOLTAGE` | Scale factor | Multiplier to convert raw → volts (e.g. `0.1`: raw 1200 → 120.0 V) |
+| `REG_AC_OUT_CURRENT` | Register address | AC current drawn by the load, in amps |
+| `SCALE_AC_OUT_CURRENT` | Scale factor | Multiplier to convert raw → amps (e.g. `0.1`: raw 150 → 15.0 A) |
+| `REG_AC_OUT_POWER` | Register address | Total AC watts delivered to the load |
+| `SCALE_AC_OUT_POWER` | Scale factor | Multiplier to convert raw → watts (e.g. `1.0`: raw already in watts) |
 
 ### DC / Battery
 
-| Key | Type | Description | Example |
-|-----|------|-------------|---------|
-| `REG_DC_VOLTAGE` | Register address | Battery bank voltage | `0x0001` → `1` |
-| `SCALE_DC_VOLTAGE` | Scale factor | Multiplier to convert raw → volts | `0.1` (raw 264 → 26.4 V) |
-| `REG_DC_CURRENT` | Register address | Battery current. **int16** — positive = charging, negative = discharging. Raw values > 32767 are two's-complement negatives: `value = raw - 65536` | `0x0002` → `2` |
-| `SCALE_DC_CURRENT` | Scale factor | Multiplier applied to the absolute value; sign is handled in code | `0.1` (raw 65286 → −25.0 A) |
-| `REG_SOC` | Register address | State of charge, 0–100 %. No scaling applied. | `0x0010` → `16` |
+| Key | Type | Description |
+|-----|------|-------------|
+| `REG_DC_VOLTAGE` | Register address | Battery bank voltage |
+| `SCALE_DC_VOLTAGE` | Scale factor | Multiplier to convert raw → volts (e.g. `0.1`: raw 264 → 26.4 V) |
+| `REG_DC_CURRENT` | Register address | Battery current. **int16** — positive = charging, negative = discharging. Raw values > 32767 are two's-complement negatives: `value = raw - 65536` |
+| `SCALE_DC_CURRENT` | Scale factor | Multiplier applied after sign conversion (e.g. `0.1`: raw 65286 → −25.0 A) |
+| `REG_SOC` | Register address | State of charge, 0–100 %. No scaling applied. |
 
 ### AC Input (Shore / Generator)
 
-| Key | Type | Description | Example |
-|-----|------|-------------|---------|
-| `REG_AC_IN_VOLTAGE` | Register address | Voltage on the AC input from grid or generator | `0x000A` → `10` |
-| `SCALE_AC_IN_VOLTAGE` | Scale factor | Multiplier to convert raw → volts | `1.0` (raw 120 → 120 V) |
-| `REG_AC_IN_CURRENT` | Register address | Current drawn from the AC input, in amps | `0x000D` → `13` |
-| `SCALE_AC_IN_CURRENT` | Scale factor | Multiplier to convert raw → amps | `0.1` (raw 30 → 3.0 A) |
-| `REG_AC_IN_CONNECTED` | Register address | Whether AC input is present. `1` = connected, `0` = disconnected. No scaling. | `0x0009` → `9` |
+| Key | Type | Description |
+|-----|------|-------------|
+| `REG_AC_IN_VOLTAGE` | Register address | Voltage on the AC input from grid or generator |
+| `SCALE_AC_IN_VOLTAGE` | Scale factor | Multiplier to convert raw → volts |
+| `REG_AC_IN_CURRENT` | Register address | Current drawn from the AC input, in amps |
+| `SCALE_AC_IN_CURRENT` | Scale factor | Multiplier to convert raw → amps |
+| `REG_AC_IN_CONNECTED` | Register address | Working status bit field. Driver checks the "no AC voltage" bit to determine `1` = connected / `0` = disconnected. No scaling. |
 
 ### Status and Fault
 
-| Key | Type | Description | Example |
-|-----|------|-------------|---------|
-| `REG_FAULT` | Register address | Fault/alarm register. `0` = no fault. Any non-zero value triggers Victron status **Error (10)**. | `0x0020` → `32` |
-| `REG_CHARGE_STATE` | Register address | Raw charger state code. Published directly to `/VebusChargeState` on D-Bus. See [Charger State Codes](#charger-state-codes) below. | `0x0008` → `8` |
+| Key | Type | Description |
+|-----|------|-------------|
+| `REG_FAULT` | Register address | Fault/alarm register. `0` = no fault. Any non-zero value triggers Victron status **Error (10)**. |
+| `REG_CHARGE_STATE` | Register address | Raw charger state code. Published directly to `/VebusChargeState` on D-Bus. See [Charger State Codes](#charger-state-codes) below. |
 
 ### Identity
 
-| Key | Type | Description | Example |
-|-----|------|-------------|---------|
-| `REG_IDENTITY` | Register address | A register that holds a fixed device model or product ID value, used to confirm an EVO series inverter is on this port before the driver registers on D-Bus. The same register address is used across all EVO models. | `0x0000` → `0` |
-| `IDENTITY_VALUE` | Expected value | The model-specific integer the driver expects to read back from `REG_IDENTITY`. **This differs per EVO model.** Find the value for your unit in the Modbus Protocol Guide. If the register returns anything else, `test_connection()` returns `False` and the port is skipped. | EVO-4024: *(from guide)* |
+| Key | Type | Description |
+|-----|------|-------------|
+| `REG_IDENTITY` | Register address | A register that holds a fixed device model or product ID value, used to confirm an EVO series inverter is on this port before the driver registers on D-Bus. The same register address is used across all EVO models. |
+| `IDENTITY_VALUE` | Expected value | The model-specific integer the driver expects to read back from `REG_IDENTITY`. **This differs per EVO model.** Find the value for your unit in the Modbus Protocol Guide. If the register returns anything else, `test_connection()` returns `False` and the port is skipped. |
 
 ---
 

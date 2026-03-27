@@ -4,9 +4,8 @@ from modbus_inverter import ModbusInverter
 from utils import logger
 import utils
 
-# Samlex EVO charge stage (reg 286, 0x11EH) → Victron /State (vebus operating state)
+# Samlex EVO charge stage → Victron /State (vebus operating state)
 # Derived when AC is connected. Fault and AC-disconnected are handled first.
-# Source: Samlex EVO Modbus Protocol Registry Rev E, Feb 2022
 # Victron /State: 3=Bulk, 4=Absorption, 5=Float, 7=Equalize, 8=Passthru, 9=Inverting
 _VEBUS_STATE_FROM_CHARGE = {
     0: 8,  # Standby      → Passthru
@@ -17,7 +16,7 @@ _VEBUS_STATE_FROM_CHARGE = {
     5: 8,  # Charger stop → Passthru
 }
 
-# Samlex EVO charge stage (reg 286) → Victron /VebusChargeState
+# Samlex EVO charge stage → Victron /VebusChargeState
 # Samlex: 0=standby, 1=bulk current, 2=absorb voltage, 3=equalization, 4=floating, 5=charger stop
 # Victron: 0=Idle, 1=Bulk, 2=Absorption, 3=Float, 5=Equalise
 _CHARGE_STATE_MAP = {
@@ -153,9 +152,8 @@ class Samlex(ModbusInverter):
         if not self._registers_configured():
             logger.debug("Samlex: register map not configured, skipping")
             return False
-        # Step 2: confirm presence by reading the operating mode register (0x11CH, addr 284).
-        # Samlex EVO has no model identity register; valid operating modes are 0-3:
-        # 0=standby/fault, 1=inverter, 2=charger, 3=power saving.
+        # Step 2: confirm presence by reading the identity register.
+        # Valid values are 0-3.
         try:
             ok, regs = self._read_batch(self._reg("REG_IDENTITY"), 1)
             if ok and regs[0] in (0, 1, 2, 3):
@@ -235,18 +233,17 @@ class Samlex(ModbusInverter):
             v = self.energy_data["ac_in"]["voltage"]
             i = self.energy_data["ac_in"]["current"]
             self.energy_data["ac_in"]["power"] = round(v * i, 0) if v is not None and i is not None else None
-            # Grid status is a bit field (0x103H). Bit 9 = "no voltage" (not connected).
-            # Connected when bit 9 is clear: (value & 0x200) == 0
+            # Grid status is a bit field. Connected when the "no voltage" bit is clear.
             self.energy_data["ac_in"]["connected"] = 1 if (ac_in["REG_AC_IN_CONNECTED"] & 0x200) == 0 else 0
         else:
             error = True
 
         # Compute AC load power (requires both ac_out and ac_in reads above).
-        # reg274 sign: positive=inverting (battery→loads), negative=charging (grid→battery).
-        # When inverting: reg274 is the load power directly.
+        # AC power sign: positive=inverting (battery→loads), negative=charging (grid→battery).
+        # When inverting: AC power is the load power directly.
         # When charging: the EVO uses a transfer switch — loads draw from AC input directly,
         # bypassing the output current sensor. Load power = grid_VA - charger_power.
-        #   load_power = (V_in × I_in) + reg274_signed   (reg274 is negative, so this subtracts)
+        #   load_power = (V_in × I_in) + ac_p   (ac_p is negative, so this subtracts)
         if ac_out:
             ac_p = self.energy_data["L1"]["ac_power"]
             if ac_p < 0:
