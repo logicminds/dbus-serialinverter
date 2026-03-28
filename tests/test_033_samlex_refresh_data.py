@@ -84,7 +84,7 @@ def _make_client(address_regs=None, fail_addresses=None):
     client = mock.MagicMock()
     client.is_socket_open.return_value = True
     client.connect.return_value = True
-    client.read_input_registers.side_effect = _effect
+    client.read_holding_registers.side_effect = _effect
     return client
 
 
@@ -140,10 +140,22 @@ def test_dc_current_scaled():
     assert s.energy_data["dc"]["current"] == 50.0
 
 
-def test_soc_stored():
-    s = _make_samlex(_make_client(address_regs={_REG_MAP["REG_SOC"]: [75]}))
+def test_soc_stored_when_configured():
+    """SOC is optional — only populated when REG_SOC is in config."""
+    soc_addr = 200  # arbitrary address outside the required register range
+    cfg = _make_config()
+    cfg.set("SAMLEX_REGISTERS", "REG_SOC", str(soc_addr))
+    client = _make_client(address_regs={soc_addr: [75]})
+    s = _make_samlex(client, cfg=cfg)
     s.read_status_data()
     assert s.energy_data["dc"]["soc"] == 75.0
+
+
+def test_soc_none_when_not_configured():
+    """SOC stays None when REG_SOC is not in config (Battery Monitor provides it)."""
+    s = _make_samlex(_make_client())
+    s.read_status_data()
+    assert s.energy_data["dc"]["soc"] is None
 
 
 # ── AC input fields ───────────────────────────────────────────────────────────
@@ -291,7 +303,8 @@ if __name__ == "__main__":
     test_ac_power_propagates_to_overall()
     test_dc_voltage_scaled()
     test_dc_current_scaled()
-    test_soc_stored()
+    test_soc_stored_when_configured()
+    test_soc_none_when_not_configured()
     test_ac_in_connected_stored()
     test_ac_in_voltage_scaled()
     test_ac_in_power_derived_from_voltage_and_current()

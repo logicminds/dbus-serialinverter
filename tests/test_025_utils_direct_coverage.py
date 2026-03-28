@@ -30,7 +30,7 @@ def test_driver_version_is_float():
 
 def test_driver_version_value():
     mod = _load_utils_real()
-    assert mod.DRIVER_VERSION == 0.1
+    assert mod.DRIVER_VERSION == 0.3
 
 
 def test_driver_subversion_is_string():

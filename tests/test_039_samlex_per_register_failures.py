@@ -56,7 +56,7 @@ _SCALES = {
 
 # Batch group start addresses (min address in each group, matching _read_group logic)
 _AC_OUT_START  = min(_REG_MAP[k] for k in ["REG_AC_OUT_VOLTAGE", "REG_AC_OUT_CURRENT", "REG_AC_OUT_POWER"])
-_DC_START      = min(_REG_MAP[k] for k in ["REG_DC_VOLTAGE", "REG_DC_CURRENT", "REG_SOC"])
+_DC_START      = min(_REG_MAP[k] for k in ["REG_DC_VOLTAGE", "REG_DC_CURRENT"])
 _AC_IN_START   = min(_REG_MAP[k] for k in ["REG_AC_IN_VOLTAGE", "REG_AC_IN_CURRENT", "REG_AC_IN_CONNECTED"])
 _STATUS_START  = min(_REG_MAP[k] for k in ["REG_FAULT", "REG_CHARGE_STATE"])
 
@@ -83,7 +83,7 @@ def _make_client(fail_batch_start):
 
     client = mock.MagicMock()
     client.is_socket_open.return_value = True
-    client.read_input_registers.side_effect = _effect
+    client.read_holding_registers.side_effect = _effect
     return client
 
 

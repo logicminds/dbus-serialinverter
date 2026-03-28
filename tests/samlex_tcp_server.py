@@ -48,18 +48,20 @@ logger = logging.getLogger("samlex_tcp_server")
 # Keys match [SAMLEX_REGISTERS] config keys exactly.
 # Scaled registers (REG_*_VOLTAGE / CURRENT / POWER) hold target engineering-unit
 # values; the raw uint16 sent over Modbus is computed as round(value / SCALE_*).
-# Dimensionless/raw registers (FAULT, SOC, CHARGE_STATE, AC_IN_CONNECTED, IDENTITY)
+# Dimensionless/raw registers (FAULT, CHARGE_STATE, AC_IN_CONNECTED, IDENTITY)
 # are stored as the exact raw uint16 written to the Modbus datastore.
+#
+# Note: Samlex EVO does not report SOC — Battery Monitor provides it.
+# REG_DC_VOLTAGE maps to Bus Voltage (addr 14), REG_DC_CURRENT to Charger Current (addr 12).
 _NORMAL_VALUES: Dict[str, Any] = {
     "REG_IDENTITY": None,  # filled at runtime from identity_value arg
     "REG_AC_IN_CONNECTED": 1,  # raw: 1 = AC input normal
     "REG_FAULT": 0,  # raw: 0 = no fault
-    "REG_DC_VOLTAGE": 26.4,  # V
-    "REG_DC_CURRENT": 5.2,  # A (positive = charging)
+    "REG_DC_VOLTAGE": 26.4,  # V (Bus Voltage)
+    "REG_DC_CURRENT": 5.2,  # A (Charger Current, positive = charging)
     "REG_AC_OUT_VOLTAGE": 120.0,  # V
     "REG_AC_OUT_CURRENT": 8.33,  # A
     "REG_AC_OUT_POWER": 1000.0,  # W
-    "REG_SOC": 85,  # % (no scale)
     "REG_CHARGE_STATE": 2,  # raw: 2 = Absorption
     "REG_AC_IN_VOLTAGE": 120.0,  # V
     "REG_AC_IN_CURRENT": 30.17,  # A
@@ -189,16 +191,15 @@ class SamlexModbusServer:
             values["REG_AC_IN_CONNECTED"] = 1         # raw: 1 = AC input normal
             values["REG_AC_IN_VOLTAGE"] = 120.0       # V
             values["REG_AC_IN_CURRENT"] = 33.0        # A  (3960 W / 120 V; shore > output)
-            # DC / battery
-            values["REG_DC_VOLTAGE"] = 26.4           # V  (24V nominal)
-            values["REG_DC_CURRENT"] = 6.0            # A  positive = battery charging
-            values["REG_SOC"] = 85                    # %
+            # DC / battery (Bus Voltage + Charger Current)
+            values["REG_DC_VOLTAGE"] = 26.4           # V  (24V nominal, Bus Voltage)
+            values["REG_DC_CURRENT"] = 6.0            # A  Charger Current (AC→battery)
             # State
             values["REG_CHARGE_STATE"] = 2            # raw: 2 = Absorption
 
             # Expected VRM values:
             #   AC In:  120V, 33.0A, 3960W    AC Out: 120V, 31.7A, 3800W
-            #   DC:     26.4V, 6.0A, ~158W    SOC: 85%    State: Absorption
+            #   DC:     26.4V, 6.0A, ~158W    SOC: from Battery Monitor    State: Absorption
             logger.info("Scenario: HEAVY LOAD with Input (3800W out, 3960W in, battery charging)")
 
         elif self.scenario == "heavy_load_battery":
@@ -219,22 +220,21 @@ class SamlexModbusServer:
             values["REG_AC_IN_VOLTAGE"] = 0.0         # V
             values["REG_AC_IN_CURRENT"] = 0.0         # A
             # DC / battery (heavy discharge — AC inverting + DC loads)
-            values["REG_DC_VOLTAGE"] = 24.8           # V  (sagging under load)
+            values["REG_DC_VOLTAGE"] = 24.8           # V  (Bus Voltage, sagging under load)
             values["REG_DC_CURRENT"] = -174.0         # A  negative = discharging
-            values["REG_SOC"] = 62                    # %
             # State
             values["REG_CHARGE_STATE"] = 9            # raw: 9 = Inverting
 
             # Expected VRM values:
             #   AC In:  disconnected           AC Out: 120V, 29.2A, 3500W
-            #   DC:     24.8V, -174.0A, ~-4315W   SOC: 62%   State: Inverting
+            #   DC:     24.8V, -174.0A, ~-4315W   SOC: from Battery Monitor   State: Inverting
             #   DC System (systemcalc): ~200W  (total DC - inverter DC draw)
             logger.info("Scenario: HEAVY LOAD on Battery (3500W AC + 200W DC, no AC in)")
 
         elif self.scenario == "low_battery":
-            values["REG_SOC"] = 15
-            values["REG_DC_CURRENT"] = 20.0  # high discharge (positive raw; sign handled by driver)
-            logger.info("Scenario: LOW BATTERY (15% SOC)")
+            values["REG_DC_VOLTAGE"] = 23.0           # V  (low bus voltage under load)
+            values["REG_DC_CURRENT"] = 20.0           # A  high discharge
+            logger.info("Scenario: LOW BATTERY (low bus voltage)")
 
         elif self.scenario == "ac_disconnect":
             values["REG_AC_IN_CONNECTED"] = 3  # raw: 3 = Inverting

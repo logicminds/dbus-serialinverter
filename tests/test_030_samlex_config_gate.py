@@ -111,32 +111,31 @@ def test_attempts_modbus_when_all_configured():
     cfg = _all_configured_config()
     utils_stub.config = cfg
 
-    # Mock read_input_registers to return an error (wrong device)
+    # Mock read_holding_registers to return an error (wrong device)
     fail = mock.MagicMock()
     fail.isError.return_value = True
     fail.registers = []
-    s.client.read_input_registers.return_value = fail
+    s.client.read_holding_registers.return_value = fail
 
     result = s.test_connection()
     assert result is False
     # Confirm Modbus was actually called
-    assert s.client.read_input_registers.called
+    assert s.client.read_holding_registers.called
 
 
 def test_returns_true_when_identity_register_matches():
+    """test_connection() returns True when the identity register returns a valid operating mode (0-3)."""
     s = _make_samlex()
     cfg = _all_configured_config()
-    # IDENTITY_VALUE is at index 19 → base 100+19 = 119
-    identity_val = int(cfg.get("SAMLEX_REGISTERS", "IDENTITY_VALUE"))
     utils_stub.config = cfg
 
     def _read_effect(address=0, count=1, slave=1):
         res = mock.MagicMock()
         res.isError.return_value = False
-        res.registers = [identity_val]
+        res.registers = [1]   # 1 = AC Normal (valid operating mode)
         return res
 
-    s.client.read_input_registers.side_effect = _read_effect
+    s.client.read_holding_registers.side_effect = _read_effect
     assert s.test_connection() is True
 
 

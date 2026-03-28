@@ -78,7 +78,7 @@ def _connected_client(registers=None, is_error=False):
     res = mock.MagicMock()
     res.isError.return_value = is_error
     res.registers = registers if registers is not None else []
-    client.read_input_registers.return_value = res
+    client.read_holding_registers.return_value = res
     return client
 
 

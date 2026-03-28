@@ -4,29 +4,29 @@ from modbus_inverter import ModbusInverter
 from utils import logger
 import utils
 
-# Samlex Charger State (raw) → Victron /State (vebus operating state)
-# Derived when AC is connected.  Fault and AC-disconnected are handled first.
-# Victron: 4=Absorption, 5=Float, 6=Storage, 7=Equalize, 8=Passthru, 9=Inverting
+# Samlex EVO charge stage → Victron /State (vebus operating state)
+# Derived when AC is connected. Fault and AC-disconnected are handled first.
+# Samlex: 0=Standby, 1=Eq, 2=Abs, 3=Float, 4=Storage, 5=ChargerStop
+# Victron /State: 4=Absorption, 5=Float, 7=Equalize, 8=Passthru, 9=Inverting
 _VEBUS_STATE_FROM_CHARGE = {
-    0: 8,  # Standby (no charging) → Passthru
-    1: 7,  # Equalization          → Equalize
-    2: 4,  # Absorption            → Absorption
-    3: 5,  # Float                 → Float
-    4: 6,  # Storage               → Storage
-    9: 9,  # Inverting             → Inverting
+    0: 8,  # Standby      → Passthru
+    1: 7,  # Equalization → Equalize
+    2: 4,  # Absorption   → Absorption
+    3: 5,  # Float        → Float
+    4: 8,  # Storage      → Passthru
+    5: 8,  # Charger stop → Passthru
 }
 
-# Samlex EVO Charger State register → Victron /VebusChargeState
-# Samlex (reg 8): 0=Standby, 1=Equalization, 2=Absorption, 3=Float, 4=Storage, 9=Inverting
-# Victron:        0=Idle,    1=Bulk,          2=Absorption, 3=Float, 4=Storage, 5=Equalise, 9=Inverting
-# Note: Samlex has no distinct Bulk stage; passing raw values would mismap
-# Equalization (Samlex 1) as Bulk (Victron 1).
+# Samlex EVO charge stage → Victron /VebusChargeState
+# Samlex: 0=Standby, 1=Eq, 2=Abs, 3=Float, 4=Storage, 5=ChargerStop, 9=Inverting
+# Victron: 0=Idle, 2=Absorption, 3=Float, 5=Equalise, 9=Inverting
 _CHARGE_STATE_MAP = {
     0: 0,  # Standby      → Idle
     1: 5,  # Equalization → Equalise
     2: 2,  # Absorption   → Absorption
     3: 3,  # Float        → Float
-    4: 4,  # Storage      → Storage
+    4: 0,  # Storage      → Idle
+    5: 0,  # Charger stop → Idle
     9: 9,  # Inverting    → Inverting
 }
 
@@ -41,7 +41,6 @@ REQUIRED_SAMLEX_REGISTERS = (
     "SCALE_AC_OUT_POWER",
     "REG_DC_VOLTAGE",
     "REG_DC_CURRENT",
-    "REG_SOC",
     "SCALE_DC_VOLTAGE",
     "SCALE_DC_CURRENT",
     "REG_AC_IN_VOLTAGE",
@@ -52,7 +51,12 @@ REQUIRED_SAMLEX_REGISTERS = (
     "REG_FAULT",
     "REG_CHARGE_STATE",
     "REG_IDENTITY",
-    "IDENTITY_VALUE",
+)
+
+# Optional registers — read if configured, otherwise skipped.
+# Samlex EVO does not report SOC; a separate Battery Monitor provides it.
+OPTIONAL_SAMLEX_REGISTERS = (
+    "REG_SOC",
 )
 
 
@@ -83,6 +87,17 @@ class Samlex(ModbusInverter):
                 return False
         return True
 
+    def _has_register(self, key):
+        """Return True if the optional register key is configured as a valid Modbus register."""
+        val = utils.config.get("SAMLEX_REGISTERS", key, fallback="???").strip()
+        if val == "???":
+            return False
+        try:
+            value = int(val)
+        except ValueError:
+            return False
+        return 0 <= value <= 65535
+
     def _reg(self, key):
         """Return an integer register address or integer value from [SAMLEX_REGISTERS]."""
         value = int(utils.config.get("SAMLEX_REGISTERS", key))
@@ -95,6 +110,24 @@ class Samlex(ModbusInverter):
         return float(utils.config.get("SAMLEX_REGISTERS", key))
 
     # ── Modbus helpers ────────────────────────────────────────────────────────
+
+    def _read_batch(self, address, count):
+        """Read `count` holding registers (FC03) from `address`. Samlex EVO uses FC03."""
+        if not self._ensure_connected():
+            logger.error("No connection")
+            return False, []
+        res = self.client.read_holding_registers(address=address, count=count, slave=self.slave)
+        logger.debug("Read batch - address=%s, count=%s, slave=%s", address, count, self.slave)
+        if res.isError():
+            logger.error("Error reading registers %s-%s", address, address + count - 1)
+            return False, []
+        if len(res.registers) < count:
+            logger.error(
+                "Truncated response: expected %s registers, got %s (address=%s)",
+                count, len(res.registers), address,
+            )
+            return False, []
+        return True, res.registers
 
     def _read_group(self, keys):
         """Read a group of registers in one batch. Returns dict key->value or None on failure."""
@@ -139,13 +172,14 @@ class Samlex(ModbusInverter):
         if not self._registers_configured():
             logger.debug("Samlex: register map not configured, skipping")
             return False
-        # Step 2: confirm hardware identity via a single register read
+        # Step 2: confirm presence by reading the identity register.
+        # Valid values are 0-3.
         try:
             ok, regs = self._read_batch(self._reg("REG_IDENTITY"), 1)
-            if ok and regs[0] == self._reg("IDENTITY_VALUE"):
-                logger.debug("Samlex: identity confirmed (register value %s)", regs[0])
+            if ok and regs[0] in (0, 1, 2, 3):
+                logger.debug("Samlex: identity confirmed (operating mode %s)", regs[0])
                 return True
-            logger.debug("Samlex: identity mismatch or read failed")
+            logger.debug("Samlex: unexpected operating mode %s or read failed", regs[0] if ok else "N/A")
             return False
         except (IOError, ValueError) as exc:
             logger.debug("test_connection() failed: %s", exc)
@@ -185,18 +219,24 @@ class Samlex(ModbusInverter):
                 ("REG_AC_OUT_CURRENT", "SCALE_AC_OUT_CURRENT", "L1", "ac_current", 2, True),
                 ("REG_AC_OUT_POWER",   "SCALE_AC_OUT_POWER",   "L1", "ac_power",   0, True),
             ])
-            self.energy_data["overall"]["ac_power"] = self.energy_data["L1"]["ac_power"]
+            # Load power is computed after ac_in is read (see below).
         else:
             error = True
 
         # DC / battery (batch)
-        dc = self._read_group(["REG_DC_VOLTAGE", "REG_DC_CURRENT", "REG_SOC"])
+        dc_keys = ["REG_DC_VOLTAGE", "REG_DC_CURRENT"]
+        has_soc = self._has_register("REG_SOC")
+        if has_soc:
+            dc_keys.append("REG_SOC")
+        dc = self._read_group(dc_keys)
         if dc:
             self._apply_scaled_fields(dc, [
                 ("REG_DC_VOLTAGE", "SCALE_DC_VOLTAGE", "dc", "voltage", 2),
                 ("REG_DC_CURRENT", "SCALE_DC_CURRENT", "dc", "current", 2, True),
             ])
-            self.energy_data["dc"]["soc"] = round(dc["REG_SOC"], 1)
+            if has_soc:
+                self.energy_data["dc"]["soc"] = round(dc["REG_SOC"], 1)
+            # else: SOC stays None — Battery Monitor provides it
             v = self.energy_data["dc"]["voltage"]
             i = self.energy_data["dc"]["current"]
             self.energy_data["dc"]["power"] = round(v * i, 0) if v is not None and i is not None else None
@@ -213,11 +253,26 @@ class Samlex(ModbusInverter):
             v = self.energy_data["ac_in"]["voltage"]
             i = self.energy_data["ac_in"]["current"]
             self.energy_data["ac_in"]["power"] = round(v * i, 0) if v is not None and i is not None else None
-            # Working status: 0=Power saving, 1=AC input normal, 2=AC input abnormal, 3=Inverting, 4=Fault
-            # "Connected" means AC input is present and normal (value == 1)
-            self.energy_data["ac_in"]["connected"] = 1 if ac_in["REG_AC_IN_CONNECTED"] == 1 else 0
+            # Connected when working status is AC Normal (1) or AC Abnormal (2).
+            # 3=Inverting, 0=PowerSave, 4=Fault are all treated as disconnected.
+            self.energy_data["ac_in"]["connected"] = 1 if ac_in["REG_AC_IN_CONNECTED"] in (1, 2) else 0
         else:
             error = True
+
+        # Compute AC load power (requires both ac_out and ac_in reads above).
+        # AC power sign: positive=inverting (battery→loads), negative=charging (grid→battery).
+        # When inverting: AC power is the load power directly.
+        # When charging: the EVO uses a transfer switch — loads draw from AC input directly,
+        # bypassing the output current sensor. Load power = grid_VA - charger_power.
+        #   load_power = (V_in × I_in) + ac_p   (ac_p is negative, so this subtracts)
+        if ac_out:
+            ac_p = self.energy_data["L1"]["ac_power"]
+            if ac_p < 0:
+                gv = self.energy_data["ac_in"]["voltage"]
+                gi = self.energy_data["ac_in"]["current"]
+                grid_va = round(gv * gi, 0) if gv is not None and gi is not None else 0
+                self.energy_data["L1"]["ac_power"] = max(0, grid_va + ac_p)
+            self.energy_data["overall"]["ac_power"] = self.energy_data["L1"]["ac_power"]
 
         # Fault / status (batch)
         status_regs = self._read_group(["REG_FAULT", "REG_CHARGE_STATE"])

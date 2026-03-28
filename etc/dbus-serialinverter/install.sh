@@ -32,6 +32,32 @@ grep -qxF "$SERIAL_STARTER_ALIAS_LINE" "$SERIAL_STARTER_FILE" || {
     exit 1
 }
 
+# ── Map serial device to this driver via udev ────────────────────────────────
+# serial-starter reads VE_SERVICE from udev to route devices to services.
+# lock-serial-device.sh creates a udev rule that sets VE_SERVICE=sinv for
+# the selected USB-RS485 adapter. Prompt the user if no rule exists yet.
+UDEV_RULE_FILE="/etc/udev/rules.d/serial-starter.rules"
+if [ ! -f "$UDEV_RULE_FILE" ] || ! grep -q 'VE_SERVICE.*sinv' "$UDEV_RULE_FILE"; then
+    echo
+    echo "=== Serial Device Setup ==="
+    echo "No udev rule found to route your USB-RS485 adapter to this driver."
+    echo "Running lock-serial-device.sh to set up the device mapping..."
+    echo
+
+    LOCK_SCRIPT="/data/etc/$DRIVERNAME/lock-serial-device.sh"
+    if [ -x "$LOCK_SCRIPT" ]; then
+        "$LOCK_SCRIPT"
+    else
+        chmod +x "$LOCK_SCRIPT" 2>/dev/null && "$LOCK_SCRIPT" || {
+            echo "Warning: Could not run lock-serial-device.sh"
+            echo "Run it manually after install:"
+            echo "  cd /data/etc/$DRIVERNAME && ./lock-serial-device.sh"
+        }
+    fi
+else
+    echo "Udev device mapping already configured."
+fi
+
 # install
 rm -rf /opt/victronenergy/service/$DRIVERNAME
 rm -rf /opt/victronenergy/service-templates/$DRIVERNAME
