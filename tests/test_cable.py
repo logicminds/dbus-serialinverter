@@ -11,7 +11,6 @@ Usage:
 import sys
 import os
 import argparse
-import time
 
 # Use the vendored pymodbus (must come before system pymodbus)
 _DRIVER_DIRS = [
@@ -30,8 +29,8 @@ for _key in list(sys.modules):
 from pymodbus.client import ModbusSerialClient
 
 
-def test_cable(port, baudrate, slave, count=50):
-    print(f"=== Samlex EVO Cable Test ===")
+def run_cable_test(port, baudrate, slave, count=50):
+    print("=== Samlex EVO Cable Test ===")
     print(f"Port:     {port}")
     print(f"Baudrate: {baudrate}")
     print(f"Slave:    {slave}")
@@ -84,7 +83,10 @@ def test_cable(port, baudrate, slave, count=50):
         for try_baud in [9600, 19200, 38400, 115200]:
             if try_baud == baudrate:
                 continue
-            c2 = ModbusSerialClient(method="rtu", port=port, baudrate=try_baud, stopbits=1, parity="N", bytesize=8, timeout=1)
+            c2 = ModbusSerialClient(
+                method="rtu", port=port, baudrate=try_baud,
+                stopbits=1, parity="N", bytesize=8, timeout=1
+            )
             c2.connect()
             r2 = c2.read_holding_registers(address=BASE_ADDR, count=1, slave=slave)
             if hasattr(r2, "isError") and not r2.isError():
@@ -99,7 +101,10 @@ def test_cable(port, baudrate, slave, count=50):
 
         # Step 2c: Try other slave addresses
         print("[2c] Trying slave addresses 1-10...", end=" ")
-        client = ModbusSerialClient(method="rtu", port=port, baudrate=baudrate, stopbits=1, parity="N", bytesize=8, timeout=1)
+        client = ModbusSerialClient(
+            method="rtu", port=port, baudrate=baudrate,
+            stopbits=1, parity="N", bytesize=8, timeout=1
+        )
         client.connect()
         found = False
         for try_slave in range(1, 11):
@@ -159,7 +164,7 @@ def test_cable(port, baudrate, slave, count=50):
         if 10 < dc_v < 60:
             print(" ✓")
         else:
-            print(f" ✗ (unusual — expected 10-60V)")
+            print(" ✗ (unusual — expected 10-60V)")
     else:
         print("    DC Voltage:  (skipped — need count > 14)")
 
@@ -184,7 +189,7 @@ def test_cable(port, baudrate, slave, count=50):
         if fault == 0:
             print(" ✓ (no fault)")
         else:
-            print(f" ✗ (active fault!)")
+            print(" ✗ (active fault!)")
 
     print()
     print("=== Cable test PASSED — communication is working ===")
@@ -227,7 +232,7 @@ def select_port():
         print(f"  [{i}] {dev}  —  {vendor or 'unknown'} / {model or 'unknown'} (serial: {serial or 'unknown'})")
     print()
 
-    choice = input(f"Select device number [0]: ").strip()
+    choice = input("Select device number [0]: ").strip()
     choice = int(choice) if choice else 0
     if not (0 <= choice < len(devices)):
         print("Error: Invalid selection.")
@@ -237,12 +242,18 @@ def select_port():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Test Samlex EVO RS485 cable and communication")
-    parser.add_argument("port", nargs="?", default=None, help="Serial port (e.g. /dev/ttyUSB0). Omit to select interactively.")
+    parser.add_argument(
+        "port", nargs="?", default=None,
+        help="Serial port (e.g. /dev/ttyUSB0). Omit to select interactively."
+    )
     parser.add_argument("--baud", type=int, default=9600, help="Baud rate (default: 9600)")
     parser.add_argument("--slave", type=int, default=1, help="Modbus slave address (default: 1)")
-    parser.add_argument("--count", type=int, default=50, help="Number of holding registers to read from address 100 (default: 50)")
+    parser.add_argument(
+        "--count", type=int, default=50,
+        help="Number of holding registers to read from address 100 (default: 50)"
+    )
     args = parser.parse_args()
 
     port = args.port if args.port else select_port()
-    ok = test_cable(port, args.baud, args.slave, args.count)
+    ok = run_cable_test(port, args.baud, args.slave, args.count)
     sys.exit(0 if ok else 1)
