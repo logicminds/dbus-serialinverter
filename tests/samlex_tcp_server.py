@@ -270,16 +270,16 @@ class SamlexModbusServer:
         for addr in sorted(self.registers.keys())[:10]:
             logger.debug(f"  Address {addr}: {self.registers[addr]}")
 
-        # Create input registers block (function code 04)
-        ir_block = ModbusSequentialDataBlock(0, values)
+        # Create holding registers block (function code 03) — Samlex EVO uses FC03
+        hr_block = ModbusSequentialDataBlock(0, values)
 
-        # Create slave context - only input registers
+        # Create slave context - only holding registers
         # zero_mode=True means addresses are 0-based (direct mapping)
         slave_context = ModbusSlaveContext(
             di=None,  # Discrete inputs
             co=None,  # Coils
-            hr=None,  # Holding registers
-            ir=ir_block,  # Input registers
+            hr=hr_block,  # Holding registers (FC03)
+            ir=None,  # Input registers
             zero_mode=True  # Use 0-based addressing
         )
 
