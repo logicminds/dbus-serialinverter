@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 Starting with tagged releases (`v*`), release notes are generated automatically from commits since the previous tag and published in GitHub Releases.
 
+## v0.3.2 (Mar 27, 2026)
+
+### Fix: Samlex EVO Modbus protocol correctness
+
+- Fixed Samlex EVO driver to use FC03 (Read Holding Registers) — FC04 was never implemented
+  in the EVO hardware and caused complete driver failure on real devices.
+- Restored `ModbusInverter._read_batch()` to FC04 so Solis batch reads continue to work;
+  Samlex now overrides `_read_batch()` in `samlex.py` to use FC03.
+- Fixed identity probe to use operating-mode register (values 0–3) since no fixed model
+  identity register exists in the EVO protocol.
+- Fixed `AC_IN_CONNECTED` check from equality-to-1 to a set membership test (`in (1, 2)`).
+- Removed `IDENTITY_VALUE` key from config and driver — no longer used.
+
+### Fix: AC load power calculation
+
+- Fixed AC loads showing zero during charging: the ac_power register is signed (positive when
+  inverting, negative when charging); publishing the raw negative value caused VRM to show no
+  AC loads. Load power is now recovered as `max(0, V_out × I_out + ac_power_signed)`.
+- Fixed AC load power in transfer-switch charging mode where loads are routed directly from
+  AC input via a transfer relay, bypassing the output current sensor.
+
+### Fix: Register map and configuration
+
+- Made `REG_SOC` optional — Samlex EVO does not report SOC (Battery Monitor provides it).
+  Config, TCP server, driver, and tests updated accordingly.
+- Removed NDA-protected Samlex EVO register addresses from committed files; replaced with
+  `<from guide>` placeholders in docs.
+- `config.ini` / `config.ini.samlexTCP`: removed dead `IDENTITY_VALUE` key.
+
+### Fix: Tooling and test correctness
+
+- Moved `cable_test` from `tests/` to `tools/` so pytest no longer collects it as a test module.
+- Fixed `_has_register()` to validate with `int()` and a 0–65535 range check (matching `_reg()`),
+  rejecting values like `"200.0"` or `"1e3"` that float() would accept.
+- Updated all Samlex test mocks from `read_input_registers` to `read_holding_registers` to match
+  the FC03 override; updated Solis test mocks back to `read_input_registers`.
+- Fixed `samlex_tcp_server.py` to use FC03 (holding registers) matching the driver's `_read_batch()`.
+- Fixed TCP server `cable_test.py` docstring usage examples to reference the correct filename.
+- Fixed `install.sh` to auto-invoke `lock-serial-device.sh` when no udev rule exists.
+
 ## v0.3.1 (Mar 21, 2026)
 
 ### Fix: TCP dev workflow and release packaging
