@@ -34,7 +34,7 @@ from inverter import Inverter
 from samlex import Samlex, REQUIRED_SAMLEX_REGISTERS
 
 _IDENTITY_REG = 200
-_IDENTITY_VAL = 42
+_IDENTITY_VAL = 1   # valid operating mode (AC Normal); test_connection() accepts 0-3
 
 
 def _configured_config():
@@ -42,9 +42,8 @@ def _configured_config():
     cfg.add_section("SAMLEX_REGISTERS")
     for i, key in enumerate(REQUIRED_SAMLEX_REGISTERS):
         cfg.set("SAMLEX_REGISTERS", key, str(100 + i))
-    # Override identity with known values
+    # Override identity register address
     cfg.set("SAMLEX_REGISTERS", "REG_IDENTITY", str(_IDENTITY_REG))
-    cfg.set("SAMLEX_REGISTERS", "IDENTITY_VALUE", str(_IDENTITY_VAL))
     return cfg
 
 
@@ -61,7 +60,7 @@ def _make_client(return_registers=None, is_error=False, raise_ioerror=False):
         res.registers = return_registers if return_registers is not None else [0]
         return res
 
-    client.read_input_registers.side_effect = _effect
+    client.read_holding_registers.side_effect = _effect
     return client
 
 
@@ -83,8 +82,9 @@ def test_returns_true_when_identity_matches():
 
 
 def test_returns_false_when_identity_mismatches():
+    """Values outside 0-3 (e.g. 99) are not valid operating modes → return False."""
     utils_stub.config = _configured_config()
-    s = _make_samlex(_make_client(return_registers=[_IDENTITY_VAL + 1]))
+    s = _make_samlex(_make_client(return_registers=[99]))
     assert s.test_connection() is False
 
 
@@ -112,7 +112,7 @@ def test_no_modbus_call_when_unconfigured():
     s = _make_samlex(client)
     result = s.test_connection()
     assert result is False
-    client.read_input_registers.assert_not_called()
+    client.read_holding_registers.assert_not_called()
 
 
 if __name__ == "__main__":

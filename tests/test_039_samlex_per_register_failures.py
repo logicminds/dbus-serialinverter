@@ -83,7 +83,7 @@ def _make_client(fail_batch_start):
 
     client = mock.MagicMock()
     client.is_socket_open.return_value = True
-    client.read_input_registers.side_effect = _effect
+    client.read_holding_registers.side_effect = _effect
     return client
 
 
