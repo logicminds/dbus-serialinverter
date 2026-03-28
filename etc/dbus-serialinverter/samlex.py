@@ -6,26 +6,28 @@ import utils
 
 # Samlex EVO charge stage → Victron /State (vebus operating state)
 # Derived when AC is connected. Fault and AC-disconnected are handled first.
-# Victron /State: 3=Bulk, 4=Absorption, 5=Float, 7=Equalize, 8=Passthru, 9=Inverting
+# Samlex: 0=Standby, 1=Eq, 2=Abs, 3=Float, 4=Storage, 5=ChargerStop
+# Victron /State: 4=Absorption, 5=Float, 7=Equalize, 8=Passthru, 9=Inverting
 _VEBUS_STATE_FROM_CHARGE = {
     0: 8,  # Standby      → Passthru
-    1: 3,  # Bulk current → Bulk
-    2: 4,  # Absorb       → Absorption
-    3: 7,  # Equalization → Equalize
-    4: 5,  # Float        → Float
+    1: 7,  # Equalization → Equalize
+    2: 4,  # Absorption   → Absorption
+    3: 5,  # Float        → Float
+    4: 8,  # Storage      → Passthru
     5: 8,  # Charger stop → Passthru
 }
 
 # Samlex EVO charge stage → Victron /VebusChargeState
-# Samlex: 0=standby, 1=bulk current, 2=absorb voltage, 3=equalization, 4=floating, 5=charger stop
-# Victron: 0=Idle, 1=Bulk, 2=Absorption, 3=Float, 5=Equalise
+# Samlex: 0=Standby, 1=Eq, 2=Abs, 3=Float, 4=Storage, 5=ChargerStop, 9=Inverting
+# Victron: 0=Idle, 2=Absorption, 3=Float, 5=Equalise, 9=Inverting
 _CHARGE_STATE_MAP = {
     0: 0,  # Standby      → Idle
-    1: 1,  # Bulk current → Bulk
-    2: 2,  # Absorb       → Absorption
-    3: 5,  # Equalization → Equalise
-    4: 3,  # Float        → Float
+    1: 5,  # Equalization → Equalise
+    2: 2,  # Absorption   → Absorption
+    3: 3,  # Float        → Float
+    4: 0,  # Storage      → Idle
     5: 0,  # Charger stop → Idle
+    9: 9,  # Inverting    → Inverting
 }
 
 # All keys that must be present and numeric in [SAMLEX_REGISTERS] before the
@@ -108,6 +110,24 @@ class Samlex(ModbusInverter):
         return float(utils.config.get("SAMLEX_REGISTERS", key))
 
     # ── Modbus helpers ────────────────────────────────────────────────────────
+
+    def _read_batch(self, address, count):
+        """Read `count` holding registers (FC03) from `address`. Samlex EVO uses FC03."""
+        if not self._ensure_connected():
+            logger.error("No connection")
+            return False, []
+        res = self.client.read_holding_registers(address=address, count=count, slave=self.slave)
+        logger.debug("Read batch - address=%s, count=%s, slave=%s", address, count, self.slave)
+        if res.isError():
+            logger.error("Error reading registers %s-%s", address, address + count - 1)
+            return False, []
+        if len(res.registers) < count:
+            logger.error(
+                "Truncated response: expected %s registers, got %s (address=%s)",
+                count, len(res.registers), address,
+            )
+            return False, []
+        return True, res.registers
 
     def _read_group(self, keys):
         """Read a group of registers in one batch. Returns dict key->value or None on failure."""
@@ -233,8 +253,9 @@ class Samlex(ModbusInverter):
             v = self.energy_data["ac_in"]["voltage"]
             i = self.energy_data["ac_in"]["current"]
             self.energy_data["ac_in"]["power"] = round(v * i, 0) if v is not None and i is not None else None
-            # Grid status is a bit field. Connected when the "no voltage" bit is clear.
-            self.energy_data["ac_in"]["connected"] = 1 if (ac_in["REG_AC_IN_CONNECTED"] & 0x200) == 0 else 0
+            # Connected when working status is AC Normal (1) or AC Abnormal (2).
+            # 3=Inverting, 0=PowerSave, 4=Fault are all treated as disconnected.
+            self.energy_data["ac_in"]["connected"] = 1 if ac_in["REG_AC_IN_CONNECTED"] in (1, 2) else 0
         else:
             error = True
 

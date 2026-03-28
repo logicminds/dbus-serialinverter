@@ -36,7 +36,7 @@ class ModbusInverter(Inverter):
         if not self._ensure_connected():
             logger.error("No connection")
             return False, []
-        res = self.client.read_holding_registers(address=address, count=count, slave=self.slave)
+        res = self.client.read_input_registers(address=address, count=count, slave=self.slave)
         logger.debug("Read batch - address=%s, count=%s, slave=%s", address, count, self.slave)
         if res.isError():
             logger.error("Error reading registers %s-%s", address, address + count - 1)
