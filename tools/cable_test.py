@@ -3,10 +3,10 @@
 
 Uses Modbus Function Code 03 (Read Holding Registers) starting at address 100.
 
-Usage:
-    python cable_test.py /dev/ttyUSB0
-    python cable_test.py /dev/ttyUSB0 --baud 19200
-    python cable_test.py /dev/ttyUSB0 --slave 2
+Usage (from repo root):
+    python tools/cable_test.py /dev/ttyUSB0
+    python tools/cable_test.py /dev/ttyUSB0 --baud 19200
+    python tools/cable_test.py /dev/ttyUSB0 --slave 2
 """
 import sys
 import os

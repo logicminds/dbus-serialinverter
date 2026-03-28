@@ -37,7 +37,7 @@ So for an **EVO-4024**: the last two digits are `24` → 24 V battery system. Fo
 
 ### Adjusting config for your model
 
-Three settings in `config.ini` must match your specific unit:
+Two settings in `config.ini` must match your specific unit:
 
 | Setting | Where | What to set |
 |---------|-------|-------------|
@@ -199,7 +199,6 @@ REG_FAULT             = <from guide>   # uint16, fault/warn code (0 = no fault)
 REG_CHARGE_STATE      = <from guide>   # uint16, charger state code → published to /VebusChargeState
 
 # Identity — read by test_connection() to confirm a Samlex EVO is on this port
-REG_IDENTITY          = <from guide>   # uint16, register holding device model ID
 REG_IDENTITY          = <from guide>   # uint16, operating mode register — driver confirms value is 0-3
 ```
 
