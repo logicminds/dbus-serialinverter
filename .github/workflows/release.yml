@@ -50,18 +50,24 @@ jobs:
             compare_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commits/${tag}"
           fi
 
-          if git log --pretty=format:'- %s (%h)' "${commit_range}" >/tmp/release_commits.txt \
-            && [ -s /tmp/release_commits.txt ]; then
-            :
-          else
-            printf '%s\n' "- No commit changes found for this tag." > /tmp/release_commits.txt
+          # Extract the section for this tag from CHANGELOG.md (between this tag header
+          # and the next one), stripping the top-level heading line itself.
+          if grep -q "^## ${tag}" CHANGELOG.md; then
+            awk "/^## ${tag}/{found=1; next} found && /^## v/{exit} found{print}" \
+              CHANGELOG.md | sed '/^[[:space:]]*$/d;1s/^/\n/' > /tmp/release_body.txt
+          fi
+
+          # Fall back to git log (no merge commits) if CHANGELOG section is missing/empty.
+          if [ ! -s /tmp/release_body.txt ]; then
+            git log --no-merges --pretty=format:'- %s (%h)' "${commit_range}" \
+              > /tmp/release_body.txt || true
+            [ -s /tmp/release_body.txt ] || \
+              printf '%s\n' "- No changes recorded for this tag." > /tmp/release_body.txt
           fi
 
           {
             echo "## ${tag} (${release_date})"
-            echo
-            echo "### Changes"
-            cat /tmp/release_commits.txt
+            cat /tmp/release_body.txt
             echo
             echo "### Compare"
             echo "- ${compare_url}"
