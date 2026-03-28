@@ -34,9 +34,8 @@ POSITION=1
 # Do NOT use these with real hardware - they won't work!
 # ============================================================
 
-# Identity register
+# Identity register — driver confirms operating mode is 0-3 (not a fixed product ID)
 REG_IDENTITY=4021
-IDENTITY_VALUE=16420
 
 # AC Output registers
 REG_AC_OUT_VOLTAGE=4023

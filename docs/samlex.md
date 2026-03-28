@@ -26,16 +26,14 @@ EVO - 40 24
 
 So for an **EVO-4024**: the last two digits are `24` → 24 V battery system. For an **EVO-2212**: last two digits are `12` → 12 V battery system. You can always read the required battery voltage straight off the model number without consulting any datasheet.
 
-| Model | Battery voltage | Rated power | `MAX_AC_POWER` | Expected DC range | `IDENTITY_VALUE` |
-|-------|-----------------|-------------|----------------|-------------------|------------------|
-| EVO-2212 | **12 V** | 2200 W | `2200` | 10–15 V | *(from guide)* |
-| EVO-2224 | **24 V** | 2200 W | `2200` | 20–30 V | *(from guide)* |
-| EVO-4024 | **24 V** | 4000 W | `4000` | 20–30 V | *(from guide)* |
-| EVO-4048 | **48 V** | 4000 W | `4000` | 40–60 V | *(from guide)* |
+| Model | Battery voltage | Rated power | `MAX_AC_POWER` | Expected DC range |
+|-------|-----------------|-------------|----------------|-------------------|
+| EVO-2212 | **12 V** | 2200 W | `2200` | 10–15 V |
+| EVO-2224 | **24 V** | 2200 W | `2200` | 20–30 V |
+| EVO-4024 | **24 V** | 4000 W | `4000` | 20–30 V |
+| EVO-4048 | **48 V** | 4000 W | `4000` | 40–60 V |
 
 **Battery voltage is fixed by the model** — the EVO-4024 is a 24 V unit and must be paired with a 24 V battery bank. You cannot use it with a 12 V or 48 V bank. The driver does not enforce this; it simply publishes whatever DC voltage the inverter reports. If your `/Dc/0/Voltage` reading looks wrong, verify the model matches your battery bank voltage.
-
-`IDENTITY_VALUE` is the model-specific integer returned by `REG_IDENTITY`. Find both the register address and the expected value for your model in the Samlex Modbus Protocol Guide (see [Getting the Register Map](#getting-the-register-map)).
 
 ### Adjusting config for your model
 
@@ -44,7 +42,6 @@ Three settings in `config.ini` must match your specific unit:
 | Setting | Where | What to set |
 |---------|-------|-------------|
 | `MAX_AC_POWER` | `[INVERTER]` | Rated output watts — `2200` for EVO-22xx, `4000` for EVO-40xx |
-| `IDENTITY_VALUE` | `[SAMLEX_REGISTERS]` | Model-specific ID from the Modbus Protocol Guide |
 | `SCALE_DC_VOLTAGE` | `[SAMLEX_REGISTERS]` | Scale factor from the guide — verify by checking that `/Dc/0/Voltage` on D-Bus reads close to your known battery voltage |
 
 The battery voltage itself is read from the inverter and published directly to D-Bus — there is no "system voltage" setting in the driver. Use the expected DC range in the table above to sanity-check that the register address and scale factor are correct for your unit.
@@ -193,7 +190,7 @@ SCALE_DC_CURRENT      = <from guide>   # float, e.g. 0.1 (sign handled in code)
 # AC input / shore power
 REG_AC_IN_VOLTAGE     = <from guide>   # uint16, grid/gen volts
 REG_AC_IN_CURRENT     = <from guide>   # int16, grid/gen amps
-REG_AC_IN_CONNECTED   = <from guide>   # uint16, working status bit field
+REG_AC_IN_CONNECTED   = <from guide>   # uint16, operating mode enum: 1=AC Normal, 2=AC Abnormal (connected); 0=Power Save, 3=Inverting, 4=Fault (disconnected)
 SCALE_AC_IN_VOLTAGE   = <from guide>   # float, e.g. 1.0 or 0.1
 SCALE_AC_IN_CURRENT   = <from guide>   # float, e.g. 0.1 or 0.01
 
@@ -203,7 +200,7 @@ REG_CHARGE_STATE      = <from guide>   # uint16, charger state code → publishe
 
 # Identity — read by test_connection() to confirm a Samlex EVO is on this port
 REG_IDENTITY          = <from guide>   # uint16, register holding device model ID
-IDENTITY_VALUE        = <from guide>   # integer, expected identity value — differs per EVO model
+REG_IDENTITY          = <from guide>   # uint16, operating mode register — driver confirms value is 0-3
 ```
 
 **Note:** Register addresses and scale factors are obtained from the Samlex EVO Modbus Communication Protocol Guide. See [Getting the Register Map](#getting-the-register-map).
@@ -245,7 +242,7 @@ This table describes every key the driver reads from `[SAMLEX_REGISTERS]`. Regis
 | `SCALE_AC_IN_VOLTAGE` | Scale factor | Multiplier to convert raw → volts |
 | `REG_AC_IN_CURRENT` | Register address | Current drawn from the AC input, in amps |
 | `SCALE_AC_IN_CURRENT` | Scale factor | Multiplier to convert raw → amps |
-| `REG_AC_IN_CONNECTED` | Register address | Working status bit field. Driver checks the "no AC voltage" bit to determine `1` = connected / `0` = disconnected. No scaling. |
+| `REG_AC_IN_CONNECTED` | Register address | Operating mode enum. Driver sets connected=`1` when value is `1` (AC Normal) or `2` (AC Abnormal); all other values (0=Power Save, 3=Inverting, 4=Fault) set connected=`0`. No scaling. |
 
 ### Status and Fault
 
@@ -258,8 +255,7 @@ This table describes every key the driver reads from `[SAMLEX_REGISTERS]`. Regis
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `REG_IDENTITY` | Register address | A register that holds a fixed device model or product ID value, used to confirm an EVO series inverter is on this port before the driver registers on D-Bus. The same register address is used across all EVO models. |
-| `IDENTITY_VALUE` | Expected value | The model-specific integer the driver expects to read back from `REG_IDENTITY`. **This differs per EVO model.** Find the value for your unit in the Modbus Protocol Guide. If the register returns anything else, `test_connection()` returns `False` and the port is skipped. |
+| `REG_IDENTITY` | Register address | A register that holds the inverter's current operating mode. The driver confirms the value is in `0–3` (Power Save, AC Normal, AC Abnormal, or Inverting) to verify an EVO series unit is present. Any other value causes `test_connection()` to return `False` and the port is skipped. |
 
 ---
 
@@ -373,7 +369,7 @@ This means the Samlex driver is safely inert when the register map has not been 
 
 **Step 2 — Identity probe**
 
-Once the config is valid, the driver opens the serial connection and reads `REG_IDENTITY`. If the returned value matches `IDENTITY_VALUE`, the EVO series unit is confirmed and the driver claims the port. Because each model returns a different identity value, `IDENTITY_VALUE` is also what distinguishes an EVO-4024 from an EVO-2212 or EVO-4048. If the register does not match (e.g., a Solis inverter is on this port instead), `test_connection()` returns `False` and the next driver type is tried.
+Once the config is valid, the driver opens the serial connection and reads `REG_IDENTITY`. If the returned value is `0–3` (a valid EVO operating mode), the unit is confirmed and the driver claims the port. If the register returns any other value (e.g., a Solis inverter is on this port), `test_connection()` returns `False` and the next driver type is tried.
 
 ### D-Bus registration (`setup_vedbus`)
 
@@ -457,8 +453,7 @@ This means `config.ini.private` is missing or has `???` values. Create/edit `etc
 
 The identity check failed. Confirm:
 
-- `REG_IDENTITY` is the correct register address (decimal, not hex).
-- `IDENTITY_VALUE` matches exactly what the EVO 4024 returns from that register.
+- `REG_IDENTITY` is the correct register address (decimal, not hex) and the inverter returns a value of `0–3`.
 - The Modbus slave address in `[INVERTER] ADDRESS` matches the inverter's configured address.
 - RS485 wiring is correct (A/B not swapped).
 
@@ -468,7 +463,7 @@ You can test the raw Modbus read with `pymodbus`:
 from pymodbus.client import ModbusSerialClient
 c = ModbusSerialClient(method="rtu", port="/dev/ttyUSB0", baudrate=9600, stopbits=1, parity="N", bytesize=8, timeout=1)
 c.connect()
-r = c.read_input_registers(address=<REG_IDENTITY>, count=1, slave=1)
+r = c.read_holding_registers(address=<REG_IDENTITY>, count=1, slave=1)
 print(r.registers)
 ```
 
