@@ -88,15 +88,15 @@ class Samlex(ModbusInverter):
         return True
 
     def _has_register(self, key):
-        """Return True if the optional register key is configured (not '???' or missing)."""
+        """Return True if the optional register key is configured as a valid Modbus register."""
         val = utils.config.get("SAMLEX_REGISTERS", key, fallback="???").strip()
         if val == "???":
             return False
         try:
-            float(val)
-            return True
+            value = int(val)
         except ValueError:
             return False
+        return 0 <= value <= 65535
 
     def _reg(self, key):
         """Return an integer register address or integer value from [SAMLEX_REGISTERS]."""

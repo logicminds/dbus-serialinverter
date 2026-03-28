@@ -26,7 +26,7 @@ for _key in list(sys.modules):
     if _key.startswith("pymodbus"):
         del sys.modules[_key]
 
-from pymodbus.client import ModbusSerialClient
+from pymodbus.client import ModbusSerialClient  # noqa: E402
 
 
 def run_cable_test(port, baudrate, slave, count=50):
