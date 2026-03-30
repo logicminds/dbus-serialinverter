@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 Starting with tagged releases (`v*`), release notes are generated automatically from commits since the previous tag and published in GitHub Releases.
 
+## Unreleased
+
+### Fix: lock-serial-device.sh overwrote VenusOS udev baseline rules
+
+- `lock-serial-device.sh` was using `tee` to overwrite the entire
+  `/etc/udev/rules.d/serial-starter.rules` file with only the `VE_SERVICE=sinv`
+  line, destroying the VenusOS-standard `SYMLINK+="serial-starter/%k"` and
+  `cleanup.sh` rules that serial-starter needs to detect device add/remove events.
+  This caused the driver service to never start after a reboot or fresh install.
+- Script now uses `sed` to update only the sinv lock line (append/replace),
+  leaving all other rules intact.
+- Added `ensure_triggers()` which detects and restores the baseline TTY rules
+  if they are ever missing from the file.
+- Unlock mode now removes only the sinv line instead of deleting the entire file.
+
 ## v0.3.2 (Mar 27, 2026)
 
 ### Fix: Samlex EVO Modbus protocol correctness

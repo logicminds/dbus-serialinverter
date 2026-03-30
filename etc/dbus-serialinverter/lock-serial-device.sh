@@ -13,15 +13,45 @@ set -euo pipefail
 
 RULE_FILE="/etc/udev/rules.d/serial-starter.rules"
 
+# These are the VenusOS-standard baseline rules for serial-starter.
+# udev creates the /dev/serial-starter/%k symlink directly (SYMLINK+=) on add,
+# and calls cleanup.sh on remove. Do NOT overwrite or remove them.
+TTY_ADD_RULE='ACTION=="add", SUBSYSTEM=="tty", SUBSYSTEMS=="platform|usb-serial", SYMLINK+="serial-starter/%k"'
+TTY_REMOVE_RULE='ACTION=="remove", SUBSYSTEM=="tty", SUBSYSTEMS=="platform|usb-serial", RUN+="/opt/victronenergy/serial-starter/cleanup.sh %k"'
+
+# Ensure the baseline TTY rules are present in the file (prepend if missing).
+ensure_triggers() {
+    local needs_add=0 needs_remove=0
+    grep -qF 'SYMLINK+="serial-starter/%k"' "$RULE_FILE" 2>/dev/null || needs_add=1
+    grep -qF 'cleanup.sh'                   "$RULE_FILE" 2>/dev/null || needs_remove=1
+
+    if [ $needs_add -eq 1 ] || [ $needs_remove -eq 1 ]; then
+        local tmp
+        tmp=$(mktemp)
+        {
+            [ $needs_add    -eq 1 ] && printf '%s\n' "$TTY_ADD_RULE"
+            [ $needs_remove -eq 1 ] && printf '%s\n' "$TTY_REMOVE_RULE"
+            cat "$RULE_FILE" 2>/dev/null || true
+        } > "$tmp"
+        mv "$tmp" "$RULE_FILE"
+    fi
+}
+
+# Return the current sinv VE_SERVICE lock line, if any.
+current_lock_line() {
+    grep 'VE_SERVICE.*sinv' "$RULE_FILE" 2>/dev/null || true
+}
+
 # --- Unlock mode ---
 if [ "${1:-}" = "--unlock" ]; then
-    if [ ! -f "$RULE_FILE" ]; then
-        echo "No lock rule found at $RULE_FILE — nothing to remove."
+    existing=$(current_lock_line)
+    if [ -z "$existing" ]; then
+        echo "No sinv lock rule found in $RULE_FILE — nothing to remove."
         exit 0
     fi
 
-    echo "Current rule:"
-    cat "$RULE_FILE"
+    echo "Current lock rule:"
+    echo "  $existing"
     echo
 
     read -rp "Remove this rule? [y/N]: " confirm
@@ -30,20 +60,21 @@ if [ "${1:-}" = "--unlock" ]; then
         exit 0
     fi
 
-    sudo rm "$RULE_FILE"
-    sudo udevadm control --reload-rules
-    sudo udevadm trigger
+    # Remove only the sinv VE_SERVICE line; leave TTY trigger rules intact.
+    sed -i '/VE_SERVICE.*sinv/d' "$RULE_FILE"
+    udevadm control --reload-rules
+    udevadm trigger
 
-    echo "Done. Udev rule removed — serial device is no longer locked."
+    echo "Done. sinv lock rule removed — device will fall through to auto-detect."
     exit 0
 fi
 
 # --- Lock mode ---
 
-# Show existing rule if present
-if [ -f "$RULE_FILE" ]; then
+existing=$(current_lock_line)
+if [ -n "$existing" ]; then
     echo "Existing lock rule found:"
-    cat "$RULE_FILE"
+    echo "  $existing"
     echo
     read -rp "Replace it? [y/N]: " confirm
     if [ "${confirm,,}" != "y" ]; then
@@ -69,9 +100,9 @@ echo "Available USB serial devices:"
 echo
 for i in "${!DEVICES[@]}"; do
     dev="${DEVICES[$i]}"
-    model=$(udevadm info --query=property --name="$dev" 2>/dev/null | grep 'ID_MODEL=' | cut -d'=' -f2)
+    model=$(udevadm info --query=property --name="$dev" 2>/dev/null | grep 'ID_MODEL='        | cut -d'=' -f2)
     serial=$(udevadm info --query=property --name="$dev" 2>/dev/null | grep 'ID_SERIAL_SHORT=' | cut -d'=' -f2)
-    vendor=$(udevadm info --query=property --name="$dev" 2>/dev/null | grep 'ID_VENDOR=' | cut -d'=' -f2)
+    vendor=$(udevadm info --query=property --name="$dev" 2>/dev/null | grep 'ID_VENDOR='       | cut -d'=' -f2)
     printf "  [%d] %s  —  %s / %s (serial: %s)\n" "$i" "$dev" "${vendor:-unknown}" "${model:-unknown}" "${serial:-unknown}"
 done
 echo
@@ -87,7 +118,7 @@ fi
 DEV_NAME="${DEVICES[$choice]}"
 
 # Extract hardware IDs
-ID_MODEL=$(udevadm info --query=property --name="$DEV_NAME" | grep 'ID_MODEL=' | cut -d'=' -f2)
+ID_MODEL=$(udevadm info --query=property --name="$DEV_NAME" | grep 'ID_MODEL='        | cut -d'=' -f2)
 ID_SERIAL=$(udevadm info --query=property --name="$DEV_NAME" | grep 'ID_SERIAL_SHORT=' | cut -d'=' -f2)
 
 if [ -z "$ID_MODEL" ] || [ -z "$ID_SERIAL" ]; then
@@ -95,18 +126,22 @@ if [ -z "$ID_MODEL" ] || [ -z "$ID_SERIAL" ]; then
     exit 1
 fi
 
-# Write the udev rule
 RULE_LINE="ACTION==\"add\", ENV{ID_BUS}==\"usb\", ENV{ID_MODEL}==\"$ID_MODEL\", ENV{ID_SERIAL_SHORT}==\"$ID_SERIAL\", ENV{VE_SERVICE}=\"sinv\""
 
 echo
 echo "Selected: $DEV_NAME"
-echo "  Vendor: ${ID_MODEL}"
-echo "  Serial: ${ID_SERIAL}"
+echo "  Model:  $ID_MODEL"
+echo "  Serial: $ID_SERIAL"
 echo "Writing rule to $RULE_FILE..."
 
-echo "$RULE_LINE" | sudo tee "$RULE_FILE" > /dev/null
+# Remove any existing sinv lock line, then append the new one.
+sed -i '/VE_SERVICE.*sinv/d' "$RULE_FILE" 2>/dev/null || true
+printf '\n%s\n' "$RULE_LINE" >> "$RULE_FILE"
 
-sudo udevadm control --reload-rules
-sudo udevadm trigger
+# Ensure the TTY trigger rules are in the file (safe to call repeatedly).
+ensure_triggers
+
+udevadm control --reload-rules
+udevadm trigger
 
 echo "Done. Your serial converter is now locked to this hardware ID."
