@@ -259,6 +259,19 @@ class Samlex(ModbusInverter):
         else:
             error = True
 
+        # DC current sign correction for VE.Bus convention:
+        # /Dc/0/Current must be negative when inverting (consuming from battery),
+        # positive when charging (pushing power to battery).
+        # The Samlex EVO DC current register always returns a positive magnitude —
+        # apply sign based on AC connection status.
+        if self.energy_data["ac_in"]["connected"] == 0:
+            dc_i = self.energy_data["dc"].get("current")
+            dc_v = self.energy_data["dc"].get("voltage")
+            if dc_i is not None and dc_i > 0:
+                self.energy_data["dc"]["current"] = -dc_i
+                if dc_v is not None:
+                    self.energy_data["dc"]["power"] = round(-dc_v * dc_i, 0)
+
         # Compute AC load power (requires both ac_out and ac_in reads above).
         # AC power sign: positive=inverting (battery→loads), negative=charging (grid→battery).
         # When inverting: AC power is the load power directly.
