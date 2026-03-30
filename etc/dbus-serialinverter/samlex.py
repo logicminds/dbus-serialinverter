@@ -5,9 +5,8 @@ from utils import logger
 import utils
 
 # Samlex EVO charge stage → Victron /State (vebus operating state)
-# Derived when AC is connected. Fault and AC-disconnected are handled first.
-# Samlex: 0=Standby, 1=Bulk, 2=Absorption, 3=Equalization, 4=Float, 5=ChargerStop
-# Victron /State: 3=Bulk, 4=Absorption, 5=Float, 7=Equalize, 8=Passthru, 9=Inverting
+# Derived from REG_CHARGE_STATE when AC is connected. Fault and AC-disconnected are handled first.
+# Mapping configured to match Victron /State: 3=Bulk, 4=Absorption, 5=Float, 7=Equalize, 8=Passthru, 9=Inverting
 _VEBUS_STATE_FROM_CHARGE = {
     0: 8,  # Standby      → Passthru
     1: 3,  # Bulk         → Bulk
@@ -172,8 +171,7 @@ class Samlex(ModbusInverter):
         if not self._registers_configured():
             logger.debug("Samlex: register map not configured, skipping")
             return False
-        # Step 2: confirm presence by reading the identity register.
-        # Valid values are 0-3.
+        # Step 2: confirm presence by reading REG_IDENTITY (configured via config.ini).
         try:
             ok, regs = self._read_batch(self._reg("REG_IDENTITY"), 1)
             if ok and regs[0] in (0, 1, 2, 3):
@@ -253,9 +251,8 @@ class Samlex(ModbusInverter):
             v = self.energy_data["ac_in"]["voltage"]
             i = self.energy_data["ac_in"]["current"]
             self.energy_data["ac_in"]["power"] = round(v * i, 0) if v is not None and i is not None else None
-            # Register 259 is a working-status bit field. Bit 9 (0x200 = 512)
-            # indicates AC voltage is absent or abnormal. If bit 9 is clear,
-            # AC input is present and connected (value 0 = all-normal).
+            # AC connection status from REG_AC_IN_CONNECTED; uses bit 9 of the status word
+            # to detect absent/abnormal AC input (configured via config.ini SCALE_AC_IN_CONNECTED).
             self.energy_data["ac_in"]["connected"] = 0 if (ac_in["REG_AC_IN_CONNECTED"] & 0x200) else 1
         else:
             error = True

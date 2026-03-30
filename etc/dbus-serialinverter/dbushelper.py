@@ -199,6 +199,8 @@ class DbusHelper:
             self._dbusservice.add_path("/Dc/0/Current", 0, gettextcallback=self._fmt("%.2FA"))
             self._dbusservice.add_path("/Dc/0/Power", 0, gettextcallback=self._fmt("%.0FW"))
             self._dbusservice.add_path("/Soc", 0, gettextcallback=self._fmt("%.0F%%"))
+            # NOTE: When external battery monitor is detected and SOC_SOURCE=auto,
+            # DC values are set to None in publish_dbus() so VenusOS uses BMV data
         else:
             # pvinverter paths (Solis, Dummy, and similar grid-tie PV inverters)
             self._dbusservice.add_path("/Ac/MaxPower", self.inverter.max_ac_power)
@@ -273,9 +275,6 @@ class DbusHelper:
             self._dbusservice["/Ac/Out/L1/I"] = self.inverter.energy_data["L1"]["ac_current"]
             self._dbusservice["/Ac/Out/L1/P"] = self.inverter.energy_data["L1"]["ac_power"]
             dc = self.inverter.energy_data.get("dc", {})
-            self._dbusservice["/Dc/0/Voltage"] = dc.get("voltage")
-            self._dbusservice["/Dc/0/Current"] = dc.get("current")
-            self._dbusservice["/Dc/0/Power"] = dc.get("power")
 
             # Periodic re-scan for external battery monitor (SOC_SOURCE=auto)
             soc_source = getattr(self, "_soc_source", "auto")
@@ -287,9 +286,18 @@ class DbusHelper:
                 self._soc_check_counter = counter
 
             has_external = getattr(self, "_has_external_soc", False)
-            if soc_source == "none" or (soc_source == "auto" and has_external):
+            use_external_dc = soc_source == "none" or (soc_source == "auto" and has_external)
+
+            # DC values: use external battery monitor when configured/available
+            if use_external_dc:
+                self._dbusservice["/Dc/0/Voltage"] = None
+                self._dbusservice["/Dc/0/Current"] = None
+                self._dbusservice["/Dc/0/Power"] = None
                 self._dbusservice["/Soc"] = None
             else:
+                self._dbusservice["/Dc/0/Voltage"] = dc.get("voltage")
+                self._dbusservice["/Dc/0/Current"] = dc.get("current")
+                self._dbusservice["/Dc/0/Power"] = dc.get("power")
                 self._dbusservice["/Soc"] = dc.get("soc")
             charge_state = dc.get("charge_state")
             if charge_state is not None:
