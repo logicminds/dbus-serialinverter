@@ -48,6 +48,7 @@ _PHASE_PATHS = [
 
 class DbusHelper:
     _DEFAULT_PREFIX = "com.victronenergy.pvinverter"
+    _EXTERNAL_SOC_CHECK_INTERVAL = 60  # re-scan D-Bus every N publish cycles
 
     def __init__(self, inverter):
         self.inverter = inverter
@@ -60,6 +61,9 @@ class DbusHelper:
             get_bus(),
             register=False,
         )
+        self._soc_source = getattr(utils, "INVERTER_SOC_SOURCE", "auto")
+        self._has_external_soc = False
+        self._soc_check_counter = 0
 
     def _get_prefix(self):
         """Return the cached service prefix, falling back to inverter attribute lookup.
@@ -112,6 +116,27 @@ class DbusHelper:
             self.inverter.role, self.instance = self.get_role_instance()
             logger.info("Changed DeviceInstance = %d", self.instance)
 
+    def _detect_external_soc(self):
+        """Scan D-Bus for an external battery monitor (BMV / SmartShunt).
+
+        Sets self._has_external_soc = True when a com.victronenergy.battery.*
+        service is present on the bus, meaning VenusOS already has a dedicated
+        SOC source and this driver should publish /Soc = None.
+        """
+        try:
+            bus = get_bus()
+            names = bus.list_names()
+            self._has_external_soc = any(
+                str(n).startswith("com.victronenergy.battery.") for n in names
+            )
+            logger.info(
+                "SOC_SOURCE=%s: external battery monitor %s",
+                self._soc_source,
+                "detected" if self._has_external_soc else "not found",
+            )
+        except Exception:
+            logger.exception("Failed to scan D-Bus for external battery monitor")
+
     def _fmt(self, fmt):
         """Return a D-Bus gettextcallback that formats a numeric value with `fmt`."""
         return lambda path, value: fmt % float(value)
@@ -128,6 +153,9 @@ class DbusHelper:
         # Get the settings for the inverter
         if not self.inverter.get_settings():
             return False
+
+        if getattr(self, "_soc_source", "auto") == "auto":
+            self._detect_external_soc()
 
         # Create the management objects, as specified in the ccgx dbus-api document
         self._dbusservice.add_path("/Mgmt/ProcessName", __file__)
@@ -245,10 +273,24 @@ class DbusHelper:
             self._dbusservice["/Ac/Out/L1/I"] = self.inverter.energy_data["L1"]["ac_current"]
             self._dbusservice["/Ac/Out/L1/P"] = self.inverter.energy_data["L1"]["ac_power"]
             dc = self.inverter.energy_data.get("dc", {})
-            self._dbusservice["/Dc/0/Voltage"] = dc.get("voltage") or 0
-            self._dbusservice["/Dc/0/Current"] = dc.get("current") or 0
-            self._dbusservice["/Dc/0/Power"] = dc.get("power") or 0
-            self._dbusservice["/Soc"] = dc.get("soc") or 0
+            self._dbusservice["/Dc/0/Voltage"] = dc.get("voltage")
+            self._dbusservice["/Dc/0/Current"] = dc.get("current")
+            self._dbusservice["/Dc/0/Power"] = dc.get("power")
+
+            # Periodic re-scan for external battery monitor (SOC_SOURCE=auto)
+            soc_source = getattr(self, "_soc_source", "auto")
+            if soc_source == "auto":
+                counter = getattr(self, "_soc_check_counter", 0) + 1
+                if counter >= self._EXTERNAL_SOC_CHECK_INTERVAL:
+                    counter = 0
+                    self._detect_external_soc()
+                self._soc_check_counter = counter
+
+            has_external = getattr(self, "_has_external_soc", False)
+            if soc_source == "none" or (soc_source == "auto" and has_external):
+                self._dbusservice["/Soc"] = None
+            else:
+                self._dbusservice["/Soc"] = dc.get("soc")
             charge_state = dc.get("charge_state")
             if charge_state is not None:
                 self._dbusservice["/VebusChargeState"] = charge_state

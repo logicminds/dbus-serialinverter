@@ -6,26 +6,26 @@ import utils
 
 # Samlex EVO charge stage → Victron /State (vebus operating state)
 # Derived when AC is connected. Fault and AC-disconnected are handled first.
-# Samlex: 0=Standby, 1=Eq, 2=Abs, 3=Float, 4=Storage, 5=ChargerStop
-# Victron /State: 4=Absorption, 5=Float, 7=Equalize, 8=Passthru, 9=Inverting
+# Samlex: 0=Standby, 1=Bulk, 2=Absorption, 3=Equalization, 4=Float, 5=ChargerStop
+# Victron /State: 3=Bulk, 4=Absorption, 5=Float, 7=Equalize, 8=Passthru, 9=Inverting
 _VEBUS_STATE_FROM_CHARGE = {
     0: 8,  # Standby      → Passthru
-    1: 7,  # Equalization → Equalize
+    1: 3,  # Bulk         → Bulk
     2: 4,  # Absorption   → Absorption
-    3: 5,  # Float        → Float
-    4: 8,  # Storage      → Passthru
+    3: 7,  # Equalization → Equalize
+    4: 5,  # Float        → Float
     5: 8,  # Charger stop → Passthru
 }
 
 # Samlex EVO charge stage → Victron /VebusChargeState
-# Samlex: 0=Standby, 1=Eq, 2=Abs, 3=Float, 4=Storage, 5=ChargerStop, 9=Inverting
-# Victron: 0=Idle, 2=Absorption, 3=Float, 5=Equalise, 9=Inverting
+# Samlex: 0=Standby, 1=Bulk, 2=Absorption, 3=Equalization, 4=Float, 5=ChargerStop, 9=Inverting
+# Victron: 0=Idle, 1=Bulk, 2=Absorption, 3=Float, 5=Equalise, 9=Inverting
 _CHARGE_STATE_MAP = {
     0: 0,  # Standby      → Idle
-    1: 5,  # Equalization → Equalise
+    1: 1,  # Bulk         → Bulk
     2: 2,  # Absorption   → Absorption
-    3: 3,  # Float        → Float
-    4: 0,  # Storage      → Idle
+    3: 5,  # Equalization → Equalise
+    4: 3,  # Float        → Float
     5: 0,  # Charger stop → Idle
     9: 9,  # Inverting    → Inverting
 }
@@ -253,9 +253,10 @@ class Samlex(ModbusInverter):
             v = self.energy_data["ac_in"]["voltage"]
             i = self.energy_data["ac_in"]["current"]
             self.energy_data["ac_in"]["power"] = round(v * i, 0) if v is not None and i is not None else None
-            # Connected when working status is AC Normal (1) or AC Abnormal (2).
-            # 3=Inverting, 0=PowerSave, 4=Fault are all treated as disconnected.
-            self.energy_data["ac_in"]["connected"] = 1 if ac_in["REG_AC_IN_CONNECTED"] in (1, 2) else 0
+            # Register 259 is a working-status bit field. Bit 9 (0x200 = 512)
+            # indicates AC voltage is absent or abnormal. If bit 9 is clear,
+            # AC input is present and connected (value 0 = all-normal).
+            self.energy_data["ac_in"]["connected"] = 0 if (ac_in["REG_AC_IN_CONNECTED"] & 0x200) else 1
         else:
             error = True
 

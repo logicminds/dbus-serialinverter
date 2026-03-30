@@ -45,6 +45,9 @@ try:
     INVERTER_PHASE = config['INVERTER']['PHASE'] # L1; L2; L3
     INVERTER_POLL_INTERVAL = int(config['INVERTER']['POLL_INTERVAL'])
     INVERTER_POSITION = int(config['INVERTER']['POSITION']) # 0 = AC input 1; 1 = AC output; 2 = AC input 2
+    INVERTER_SOC_SOURCE = config.get('INVERTER', 'SOC_SOURCE', fallback='auto').lower()
+    if INVERTER_SOC_SOURCE not in ('auto', 'inverter', 'none'):
+        raise SystemExit("SOC_SOURCE must be 'auto', 'inverter', or 'none' (got %s)" % INVERTER_SOC_SOURCE)
 except (KeyError, ValueError) as e:
     raise SystemExit("Config error: %s. Check %s" % (e, config_file_path))
 

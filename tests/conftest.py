@@ -117,6 +117,7 @@ _utils_stub.INVERTER_MAX_AC_POWER = 800.0
 _utils_stub.INVERTER_PHASE = "L1"
 _utils_stub.INVERTER_POLL_INTERVAL = 1000
 _utils_stub.INVERTER_POSITION = 1
+_utils_stub.INVERTER_SOC_SOURCE = "auto"
 _utils_stub.PUBLISH_CONFIG_VALUES = 0
 _utils_stub.DRIVER_VERSION = "0.1"
 _utils_stub.DRIVER_SUBVERSION = ".1"
